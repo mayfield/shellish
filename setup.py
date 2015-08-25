@@ -15,8 +15,8 @@ def long_desc():
 
 setup(
     name='shellish',
-    version='0.0.1',
-    description='A command line shell framework',
+    version='0.0.3',
+    description='A shell framework for rich CLI programs.',
     author='Justin Mayfield',
     author_email='tooker@gmail.com',
     url='https://github.com/mayfield/shellish/',
@@ -35,6 +35,7 @@ setup(
         'Intended Audience :: Developers',
         'License :: OSI Approved :: MIT License',
         'Operating System :: OS Independent',
+        'Programming Language :: Python :: 3.4',
         'Programming Language :: Python',
         'Topic :: Software Development :: Libraries',
         'Topic :: System :: Shells',
