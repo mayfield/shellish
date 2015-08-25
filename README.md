@@ -1,4 +1,4 @@
-shellish - Framework for creating heavy a shell-ish CLI.
+shellish - Framework for creating shell-ish command line programs.
 ===========
 
 This module combines the Python standard library modules argparse and cmd
