@@ -7,7 +7,7 @@ class Hello(shellish.Command):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.add_subcommand(World, default=True)
+        self.add_subcommand(World)
 
     def run(self, args):
         shellish.Shell(self).cmdloop()
@@ -21,8 +21,5 @@ class World(shellish.Command):
     def run(self, args):
         print('Hello World')
 
-
-if __name__ == '__main__':
-    root = Hello()
-    args = root.argparser.parse_args()
-    root.invoke(args)
+hello = Hello()
+hello()

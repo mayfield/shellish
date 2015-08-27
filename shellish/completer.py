@@ -3,7 +3,6 @@ Tab completion handling.
 """
 
 import argparse
-from . import debug
 
 __public__ = []
 
@@ -11,8 +10,7 @@ __public__ = []
 class ActionCompleter(object):
     """ Stateful behavior for tab completion.  Calling this instance returns
     valid choices for the action with the given prefix (if any).  The results
-    are cached and the cache will be used for repeat calls or narrowed down
-    prefixes. """
+    are cached until the command is invoked/aborted. """
 
     sentinel = ' '
 
@@ -45,7 +43,6 @@ class ActionCompleter(object):
 
     def __call__(self, command, prefix):
         if self.last_complete is not command.last_invoke:
-            debug.log("CLEAR CACHE")
             self.cache.clear()
             self.last_complete = command.last_invoke
         try:
@@ -53,26 +50,6 @@ class ActionCompleter(object):
         except KeyError:
             choices = self.cache[prefix] = self.completer(prefix)
         return choices
-
-    def thru_cache(self, prefix):
-        """ Search the radix tree for this prefix.  Partial matches will be
-        refined, stored and returned. Full miss will cause a lookup. """
-        offt = self.cache
-        bestfit = offt.setdefault('__value__', self.cache_miss)
-        for c in prefix:
-            offt = offt[c]
-            bestfit = offt.setdefault('__value__', bestfit)
-        if bestfit is self.cache_miss:
-            value = self.completer(prefix)
-            self.cache_miss += 1
-        else:
-            value = frozenset(x for x in bestfit if x.startswith(prefix))
-            if value == bestfit:
-                self.cache_hit += 1
-            else:
-                self.cache_partial += 1
-        offt['__value__'] = value
-        return value
 
     def parse_nargs(self, nargs):
         """ Nargs is essentially a multi-type encoding.  We have to parse it
@@ -103,7 +80,6 @@ class ActionCompleter(object):
         """ Can this action take more arguments? """
         if self.max_args is None:
             return False
-        debug.log("is full?", self, self.max_args, self.consumed)
         return self.consumed >= self.max_args
 
     @property

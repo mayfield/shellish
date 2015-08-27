@@ -23,6 +23,8 @@ class Shell(cmd.Cmd):
     prompt = '$ '
     history_dir = os.path.expanduser('~')
     intro = 'Type "help" or "?" to list commands and "exit" to quit.'
+    completer_delim_includes = frozenset()
+    completer_delim_excludes = frozenset('-+@:')
 
     def __init__(self, root_command):
         self.root_command = root_command
@@ -38,13 +40,15 @@ class Shell(cmd.Cmd):
             setattr(self, 'help_%s' % x.name, x.argparser.print_help)
             setattr(self, 'complete_%s' % x.name, x.complete_wrap)
         delims = set(readline.get_completer_delims())
-        readline.set_completer_delims(''.join(delims - set('-+@:')))
+        delims |= self.completer_delim_includes
+        delims -= self.completer_delim_excludes
+        readline.set_completer_delims(''.join(delims))
         super().__init__()
 
     def wrap_command_invoke(self, cmd):
         def wrap(arg):
             args = cmd.argparser.parse_args(shlex.split(arg))
-            cmd.invoke(args)
+            cmd(args)
         wrap.__doc__ = cmd.__doc__
         wrap.__name__ = 'do_%s' % cmd.name
         return wrap
@@ -69,6 +73,7 @@ class Shell(cmd.Cmd):
         pass
 
     def columnize(self, items, displaywidth=None):
+        """ Smart display width handling when showing a list of stuff. """
         if displaywidth is None:
             displaywidth, h = shutil.get_terminal_size()
         return super().columnize(items, displaywidth=displaywidth)

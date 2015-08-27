@@ -6,13 +6,14 @@ used by all commands.
 import argparse
 import collections
 import functools
+import inspect
 import itertools
 import shlex
 import time
 import traceback
-from . import debug, completer
+from . import completer
 
-__public__ = ['Command']
+__public__ = ['Command', 'autocommand']
 
 
 class Command(object):
@@ -20,7 +21,9 @@ class Command(object):
     subcommand should be an instance of this class.  The docstring for sub-
     classes is used in --help output for this command and is required. """
 
-    name = None  # Single word string required by subclass.
+    name = None
+    ArgumentParser = argparse.ArgumentParser
+    ArgumentFormatter = argparse.RawDescriptionHelpFormatter
 
     def setup_args(self, parser):
         """ Subclasses should provide any setup for their parsers here. """
@@ -65,13 +68,11 @@ class Command(object):
             self.context_keys |= parent.context_keys
 
     def create_argparser(self):
-        """ Factory for arg parser, can be replaced with any ArgParser compat
-        instance. """
-        Formatter = argparse.RawDescriptionHelpFormatter
+        """ Factory for arg parser.  Can be overridden as long as it returns
+        an ArgParser compatible instance. """
         desc = self.clean_docstring()[1]
-        parser = argparse.ArgumentParser(self.name, description=desc,
-                                         formatter_class=Formatter)
-        return parser
+        return self.ArgumentParser(self.name, description=desc,
+                                   formatter_class=self.ArgumentFormatter)
 
     def clean_docstring(self):
         """ Return sanitized docstring from this class.
@@ -99,10 +100,9 @@ class Command(object):
 
     def _complete_wrap(self, text, line, begin, end):
         """ Get and format completer choices.  Note that all internal calls to
-        completer functions must use set()s but this wrapper has to return a
-        list to satisfy cmd.Cmd. """
+        completer functions must use [frozen]set()s but this wrapper has to
+        return a list to satisfy cmd.Cmd. """
         choices = self.complete(text, line, begin, end)
-        debug.log("PREFORMAT CHOICES", choices)
         sz = len(choices)
         if sz == 1:
             return ['%s ' % shlex.quote(choices.pop())]
@@ -110,14 +110,13 @@ class Command(object):
             # We don't need the sentinel choice to prevent completion
             # when there is already more than 1 choice.
             choices -= {completer.ActionCompleter.sentinel}
+        # Python's readline module is hardcoded to not insert spaces so we
+        # have to add a space to each response to get more bash-like behavior.
         return ['%s ' % x for x in choices]
 
     def complete(self, text, line, begin, end):
         """ Do naive argument parsing so the completer has better ability to
         understand expansion rules. """
-        debug.log()
-        import datetime
-        debug.log(datetime.datetime.now())
         line = line[:end]  # Ignore characters following the cursor.
         args = self.split_line(line)[1:]
         options = self.deep_scan_parser(self.argparser)
@@ -133,6 +132,7 @@ class Command(object):
                     break
             else:
                 break
+
         if text == last_subcommand:
             # We have to specially catch the case where the last argument is
             # the key used to find our subparser.  More specifically when the
@@ -172,7 +172,6 @@ class Command(object):
         # there isn't a trailing action that can still consume.
         if None in options and (not trailing_action or trailing_action.full):
             for x_action in options[None]:
-                debug.log("CONSUME FOR POS", x_action, pos_args)
                 x_action.consume(pos_args)
                 if not x_action.reached_min:
                     choices = x_action(self, text)
@@ -180,10 +179,6 @@ class Command(object):
                 elif not x_action.full:
                     choices |= x_action(self, text)
 
-        debug.log('line ::%s::' % line)
-        debug.log("text ::%s::" % text)
-        debug.log('args', args)
-        debug.log('choices', choices)
         return set(x for x in choices if x.startswith(text))
 
     def split_line(self, line):
@@ -214,22 +209,26 @@ class Command(object):
                 results[ac.key].append(ac)
         return results
 
-    def invoke(self, args):
+    def __call__(self, args=None, argv=None):
         """ If a subparser is present and configured  we forward invocation to
         the correct subcommand method. If all else fails we call run(). """
+        if args is None:
+            arg_input = shlex.split(argv) if argv is not None else None
+            args = self.argparser.parse_args(arg_input)
         commands = self.get_commands_from(args)
-        self.last_invoke = time.time()
+        self.last_invoke = time.monotonic()
         if self.subparsers:
             try:
                 command = commands[self.depth]
             except IndexError:
                 if self.default_subcommand:
-                    self.default_subcommand.argparser.parse_args([], namespace=args)
-                    self.invoke(args)  # retry
+                    parser = self.default_subcommand.argparser
+                    parser.parse_args([], namespace=args)
+                    self(args)  # retry
                     return
             else:
                 self.prerun(args)
-                command.invoke(args)
+                command(args)
                 return
         self.prerun(args)
         self.run(args)
@@ -271,3 +270,99 @@ class Command(object):
         self.subparsers._name_parser_map[command.name] = command.argparser
         command.argparser.set_defaults(**{'command%d' % self.depth: command})
         self.subcommands.append(command)
+
+
+class AutoCommand(Command):
+    """ Auto command ABC.  This command wraps a generic function and tries
+    to map the function signature to a parser configuration.  Use the
+    @autocommand decorator to use it. """
+
+    def run(self, args):
+        """ Convert the unordered args into function arguments. """
+        args = vars(args)
+        positionals = []
+        kwargs = {}
+        for action in self.argparser._actions:
+            if not hasattr(action, 'label'):
+                continue
+            if action.label == 'positional':
+                positionals.append(args.pop(action.dest))
+            elif action.label == 'varargs':
+                positionals.extend(args.pop(action.dest))
+            elif action.label == 'keyword':
+                kwargs[action.dest] = args.pop(action.dest)
+            elif action.label == 'varkwargs':
+                kwpairs = iter(args.pop(action.dest))
+                for key in kwpairs:
+                    try:
+                        key, value = key.split('=', 1)
+                    except ValueError:
+                        value = next(kwpairs)
+                        key = key.strip('-')
+                    kwargs[key] = value
+            else:
+                raise RuntimeError("XXX: Impossible?")
+        if args:
+            raise RuntimeError("XXX: Impossible?")
+        self.func(*positionals, **kwargs)
+
+    def setup_args(self, default_parser):
+        sig = inspect.signature(self.func)
+        got_keywords = False
+        for name, param in sig.parameters.items():
+            label = ''
+            options = {}
+            help = None
+            parser = default_parser
+            if param.annotation is not sig.empty:
+                options['type'] = param.annotation
+            elif param.default not in (sig.empty, None):
+                options['type'] = type(param.default)
+            if param.kind in (param.POSITIONAL_OR_KEYWORD,
+                              param.KEYWORD_ONLY):
+                if param.kind == param.KEYWORD_ONLY or \
+                   param.default is not sig.empty:
+                    help = "(default: %s)" % param.default
+                    name = '--%s' % name
+                    label = 'keyword'
+                    got_keywords = True
+                else:
+                    label = 'positional'
+            elif param.kind == param.VAR_POSITIONAL:
+                if got_keywords:
+                    # Logically impossible to handle this since keyword
+                    # arguments are always expressed as key/value pairs and
+                    # this language feature is based on giving a keyword
+                    # argument by just its position.
+                    raise ValueError("Unsupported function signature: %s" %
+                                     sig)
+                help = "variable positional args"
+                options['nargs'] = '*'
+                name = '*%s' % name
+                label = 'varargs'
+            elif param.kind == param.VAR_KEYWORD:
+                options['nargs'] = argparse.REMAINDER
+                name = '--%s' % name
+                label = 'varkwargs'
+                help = 'variable key/value args [[--key value] || ' \
+                       '[key=value] ...]'
+            if param.default not in (sig.empty, None):
+                options['default'] = param.default
+            if help:
+                options['help'] = help
+            if options.get('type'):
+                options['metavar'] = options['type'].__name__.upper()
+            action = parser.add_argument(name, **options)
+            action.label = label
+
+
+def autocommand(func):
+    """ A simplified decorator for making a single function a Command
+    instance.  In the future this will leverage PEP0484 to do really smart
+    function parsing and conversion to argparse actions. """
+
+    class FuncCommand(AutoCommand):
+        __doc__ = func.__doc__ or 'Auto command for: %s' % func.__name__
+        name = func.__name__
+
+    return FuncCommand(func=func)
