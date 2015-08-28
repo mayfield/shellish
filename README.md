@@ -45,10 +45,11 @@ TBD
 Examples
 --------
 
-[Hello World](examples/hello_world.py)
-[Decorator](examples/decorator.py)
-[Nesting (Subcommands)](examples/simple_nesting.py)
-[Alternate Styles](examples/skin_a_cat.py)
-[Tab Completion](examples/tabcompletion.py)
+* [Hello World](examples/hello_world.py)
+* [Decorator](examples/decorator.py)
+* [Nesting (Subcommands)](examples/simple_nesting.py)
+* [Alternate Styles](examples/skin_a_cat.py)
+* [Tab Completion](examples/tabcompletion.py)
 
+--------
 [All Examples](examples/)
