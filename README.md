@@ -26,15 +26,15 @@ pip3 install shellish
     
 **Development Release**
 
-```bash
+```sh
 python3.4 ./setup.py build
 python3.4 ./setup.py install
 ```
 
 *or*
 
-```bash
-$ python3.4 ./setup.py develop
+```
+python3.4 ./setup.py develop
 ```
 
 Compatibility
