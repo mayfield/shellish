@@ -1,9 +1,9 @@
-shellish - Framework for creating shell-ish command line programs.
+shellish - Command-line/shell mashup framework. 
 ===========
 
 This module combines the Python standard library modules argparse and cmd
 to provided a unified way to make cli programs that can also be interactive
-when invoked in "shell" mode.
+(when invoked in "shell" mode).
 
 The main benefit to using this package is streamlined command hierarchy when
 you want to have rich set of subcommands along with a pretty powerful tab
@@ -18,8 +18,8 @@ Requirements
 Installation
 --------
 
-    python3 ./setup.py build
-    python3 ./setup.py install
+    python3.4 ./setup.py build
+    python3.4 ./setup.py install
 
 
 Compatibility
@@ -45,44 +45,10 @@ TBD
 Examples
 --------
 
-**Hello World**
+[Hello World](examples/hello_world.py)
+[Decorator](examples/decorator.py)
+[Nesting (Subcommands)](examples/simple_nesting.py)
+[Alternate Styles](examples/skin_a_cat.py)
+[Tab Completion](examples/tabcompletion.py)
 
-A requisite Hello World..
-
-```python
-import shellish
-
-
-class Hello(shellish.Command):
-    """ I am a required docstring used to document the --help output! """
-
-    name = 'hello'
-
-    def __init__(self, *args, **kwargs):
-        self.add_subcommand(World, default=True)
-
-    def run(self, args):
-        shellish.Shell(self).cmdloop()
-
-
-class World(shellish.Command):
-    """ Say something. """
-
-    name = 'world'
-
-    def run(self, args):
-        print('Hello World')
-
-
-if __name__ == '__main__':
-    root = Hello()
-    args = root.argparser.parse_args()
-    try:
-        root.invoke(args)
-    except KeyboardInterrupt:
-        sys.exit(1)
-```
-
-```bash
-python3 ./hello.py hello world
-```
+[All Examples](examples/)
