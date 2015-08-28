@@ -39,7 +39,10 @@ class Command(object):
         self.argparser.print_usage()
         raise SystemExit(1)
 
-    def __init__(self, parent=None, **context):
+    def __init__(self, parent=None, doc=None, name=None, **context):
+        self.doc = doc or self.__doc__
+        if name:
+            self.name = name
         self.subcommands = []
         self.default_subcommand = None
         self.context_keys = set()
@@ -147,9 +150,9 @@ class Command(object):
         """ Return sanitized docstring from this class.
         The first line of the docstring is the title, and remaining lines are
         the details, aka git style. """
-        if not self.__doc__:
+        if not self.doc:
             raise SyntaxError('Docstring missing for: %s' % self)
-        doc = [x.strip() for x in self.__doc__.splitlines()]
+        doc = [x.strip() for x in self.doc.splitlines()]
         if not doc[0]:
             doc.pop(0)  # Some people leave the first line blank.
         title = doc.pop(0)
@@ -320,6 +323,10 @@ class AutoCommand(Command):
     to map the function signature to a parser configuration.  Use the
     @autocommand decorator to use it. """
 
+    def __init__(self, *args, func=None, **kwargs):
+        self.func = func
+        super().__init__(*args, **kwargs)
+
     def run(self, args):
         """ Convert the unordered args into function arguments. """
         args = vars(args)
@@ -401,9 +408,5 @@ def autocommand(func):
     """ A simplified decorator for making a single function a Command
     instance.  In the future this will leverage PEP0484 to do really smart
     function parsing and conversion to argparse actions. """
-
-    class FuncCommand(AutoCommand):
-        __doc__ = func.__doc__ or 'Auto command for: %s' % func.__name__
-        name = func.__name__
-
-    return FuncCommand(func=func)
+    doc = func.__doc__ or 'Auto command for: %s' % func.__name__
+    return AutoCommand(doc=doc, name=func.__name__, func=func)

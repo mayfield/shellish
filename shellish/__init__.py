@@ -2,15 +2,9 @@
 Public interface.
 """
 
-from . import shell, completer, command
+import importlib
 
-
-def export(module, symbol):
-    globals()[symbol] = getattr(module, symbol)
-
-for x in shell.__public__:
-    export(shell, x)
-for x in completer.__public__:
-    export(completer, x)
-for x in command.__public__:
-    export(command, x)
+for x in ['shell', 'completer', 'command']:
+    module = importlib.import_module('.%s' % x, 'shellish')
+    for sym in module.__public__:
+        globals()[sym] = getattr(module, sym)

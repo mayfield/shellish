@@ -5,12 +5,9 @@ class Hello(shellish.Command):
 
     name = 'hello'
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.add_subcommand(World)
-
     def run(self, args):
-        shellish.Shell(self).cmdloop()
+        """ Just run the shell if a subcommand was not given. """
+        self.shell()
 
 
 class World(shellish.Command):
@@ -21,5 +18,7 @@ class World(shellish.Command):
     def run(self, args):
         print('Hello World')
 
+
 hello = Hello()
+hello.add_subcommand(World)
 hello()

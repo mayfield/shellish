@@ -2,6 +2,8 @@
 Tests for the decorator that converts a function to a command.
 """
 
+import json
+import shlex
 from shellish import autocommand
 import unittest
 
@@ -217,13 +219,18 @@ class TypeTests(unittest.TestCase):
             with self.assertRaises(SystemExit):
                 f(argv=x)
 
-    def test_annotation_list(self):
+
+class Nesting(unittest.TestCase):
+
+    def test_one_level(self):
         @autocommand
-        def f(one:list):
-            self.assertIsInstance(one, list)
-            return one
-        for x in [0, 1, 1.1]:
-            self.assertEquals(f(argv=str(x)), x)
-        for x in ['nope']:
-            with self.assertRaises(SystemExit):
-                f(argv=x)
+        def main():
+            return 'main'
+
+        @autocommand
+        def sub():
+            return 'sub'
+
+        main.add_subcommand(sub)
+        self.assertEquals(main(argv=''), 'main')
+        self.assertEquals(main(argv='sub'), 'sub')
