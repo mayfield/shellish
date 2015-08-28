@@ -20,17 +20,22 @@ Installation
 
 **PyPi Stable Release**
 
+    ```
     pip3 install shellish
+    ```
     
 **Development Release**
 
+    ```
     python3.4 ./setup.py build
     python3.4 ./setup.py install
-
-    -or-
+    ```
     
+    *or*
+    
+    ```
     python3.4 ./setup.py develop
-    
+    ```
 
 Compatibility
 --------
