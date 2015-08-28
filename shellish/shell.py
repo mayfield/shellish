@@ -29,6 +29,7 @@ class Shell(cmd.Cmd):
     def __init__(self, root_command):
         self.root_command = root_command
         self.name = root_command.name
+        root_command.prog = ''
         self.history_file = os.path.join(self.history_dir,
                                          '.%s_history' % self.name)
         try:

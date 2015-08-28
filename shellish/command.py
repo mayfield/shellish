@@ -11,7 +11,7 @@ import itertools
 import shlex
 import time
 import traceback
-from . import completer
+from . import completer, shell
 
 __public__ = ['Command', 'autocommand']
 
@@ -24,6 +24,7 @@ class Command(object):
     name = None
     ArgumentParser = argparse.ArgumentParser
     ArgumentFormatter = argparse.RawDescriptionHelpFormatter
+    Shell = shell.Shell
 
     def setup_args(self, parser):
         """ Subclasses should provide any setup for their parsers here. """
@@ -38,34 +39,102 @@ class Command(object):
         self.argparser.print_usage()
         raise SystemExit(1)
 
+    def __init__(self, parent=None, **context):
+        self.subcommands = []
+        self.default_subcommand = None
+        self.context_keys = set()
+        self.inject_context(context)
+        self.parent = parent
+        self.subparsers = None
+        self.argparser = self.create_argparser()
+        self.last_invoke = None
+        self.setup_args(self.argparser)
+
+    def __call__(self, args=None, argv=None):
+        """ If a subparser is present and configured  we forward invocation to
+        the correct subcommand method. If all else fails we call run(). """
+        if args is None:
+            arg_input = shlex.split(argv) if argv is not None else None
+            args = self.argparser.parse_args(arg_input)
+        commands = self.get_commands_from(args)
+        self.last_invoke = time.monotonic()
+        if self.subparsers:
+            try:
+                command = commands[self.depth]
+            except IndexError:
+                if self.default_subcommand:
+                    parser = self.default_subcommand.argparser
+                    parser.parse_args([], namespace=args)
+                    return self(args)  # retry
+            else:
+                self.prerun(args)
+                return command(args)
+        self.prerun(args)
+        return self.run(args)
+
+    @property
+    def parent(self):
+        return self._parent
+
+    @parent.setter
+    def parent(self, parent):
+        """ Copy context from the parent into this instance as well as
+        adjusting or depth value to indicate where we exist in a command
+        tree. """
+        self._parent = parent
+        if parent:
+            pctx = dict((x, getattr(parent, x)) for x in parent.context_keys)
+            self.inject_context(pctx)
+            self.depth = parent.depth + 1
+            for command in self.subcommands:
+                command.parent = self  # bump.
+        else:
+            self.depth = 0
+
+    def inject_context(self, context):
+        """ Map context dict to this instance as attributes and keep note of
+        the keys being set so we can pass this along to any subcommands. """
+        self.context_keys |= set(context.keys())
+        for key, value in context.items():
+            setattr(self, key, value)
+
+    @property
+    def prog(self):
+        return self.argparser.prog
+
+    @prog.setter
+    def prog(self, prog):
+        """ Update ourself and any of our subcommands. """
+        self.argparser.prog = prog
+        fmt = '%s %%s' % prog if prog else '%s'
+        for command in self.subcommands:
+            command.prog = fmt % command.name
+
+    @property
+    def depth(self):
+        return self._depth
+
+    @depth.setter
+    def depth(self, value):
+        """ Update ourself and any of our subcommands. """
+        #if hasattr(self, 'argparser'):
+        for command in self.subcommands:
+            command.depth = value + 1
+            del command.argparser._defaults['command%d' % self._depth]
+            command.argparser._defaults['command%d' % value] = command
+        self._depth = value
+
+    def shell(self):
+        """ Run this command in shell mode.  Note that this loops until the
+        user quits the session. """
+        self.Shell(self).cmdloop()
+
     def add_argument(self, *args, complete=None, **kwargs):
         """ Allow cleaner action supplementation. """
         action = self.argparser.add_argument(*args, **kwargs)
         if complete:
             action.complete = complete
         return action
-
-    def __init__(self, parent=None, **context):
-        self.inject_context(parent, context)
-        self.parent = parent
-        self.depth = (parent.depth + 1) if parent else 0
-        self.subcommands = []
-        self.subparsers = None
-        self.default_subcommand = None
-        self.argparser = self.create_argparser()
-        self.last_invoke = None
-        self.setup_args(self.argparser)
-
-    def inject_context(self, parent, context):
-        """ Map context attributes from the parent and from the context
-        argument into this instance (as attributes). """
-        self.context_keys = set(context.keys())
-        for key, value in context.items():
-            setattr(self, key, value)
-        if parent:
-            for key in parent.context_keys:
-                setattr(self, key, getattr(parent, key))
-            self.context_keys |= parent.context_keys
 
     def create_argparser(self):
         """ Factory for arg parser.  Can be overridden as long as it returns
@@ -209,30 +278,6 @@ class Command(object):
                 results[ac.key].append(ac)
         return results
 
-    def __call__(self, args=None, argv=None):
-        """ If a subparser is present and configured  we forward invocation to
-        the correct subcommand method. If all else fails we call run(). """
-        if args is None:
-            arg_input = shlex.split(argv) if argv is not None else None
-            args = self.argparser.parse_args(arg_input)
-        commands = self.get_commands_from(args)
-        self.last_invoke = time.monotonic()
-        if self.subparsers:
-            try:
-                command = commands[self.depth]
-            except IndexError:
-                if self.default_subcommand:
-                    parser = self.default_subcommand.argparser
-                    parser.parse_args([], namespace=args)
-                    self(args)  # retry
-                    return
-            else:
-                self.prerun(args)
-                command(args)
-                return
-        self.prerun(args)
-        self.run(args)
-
     def get_commands_from(self, args):
         """ We have to code the key names for each depth.  This method scans
         for each level and returns a list of the command arguments. """
@@ -244,8 +289,10 @@ class Command(object):
                 break
         return commands
 
-    def add_subcommand(self, command_class, default=False):
-        command = command_class(parent=self)
+    def add_subcommand(self, command, default=False):
+        if isinstance(command, type):
+            command = command()
+        command.parent = self
         if command.name is None:
             raise TypeError('Cannot add unnamed command: %s' % command)
         if not self.subparsers:
@@ -260,15 +307,11 @@ class Command(object):
         title, desc = command.clean_docstring()
         help_fmt = '%s (default)' if default else '%s'
         help = help_fmt % title
-        prog = '%s %s' % (self.subparsers._prog_prefix, command.name)
-        if command.subparsers:
-            for x in command.subparsers.choices.values():
-                x.prog = '%s %s' % (prog, x.prog.rsplit(' ', 1)[1])
-        command.argparser.prog = prog
+        command.prog = '%s %s' % (self.prog, command.name)
+        command.argparser._defaults['command%d' % self.depth] = command
         action = self.subparsers._ChoicesPseudoAction(command.name, (), help)
         self.subparsers._choices_actions.append(action)
         self.subparsers._name_parser_map[command.name] = command.argparser
-        command.argparser.set_defaults(**{'command%d' % self.depth: command})
         self.subcommands.append(command)
 
 
@@ -281,30 +324,28 @@ class AutoCommand(Command):
         """ Convert the unordered args into function arguments. """
         args = vars(args)
         positionals = []
-        kwargs = {}
+        keywords = {}
         for action in self.argparser._actions:
             if not hasattr(action, 'label'):
                 continue
             if action.label == 'positional':
-                positionals.append(args.pop(action.dest))
+                positionals.append(args[action.dest])
             elif action.label == 'varargs':
-                positionals.extend(args.pop(action.dest))
+                positionals.extend(args[action.dest])
             elif action.label == 'keyword':
-                kwargs[action.dest] = args.pop(action.dest)
+                keywords[action.dest] = args[action.dest]
             elif action.label == 'varkwargs':
-                kwpairs = iter(args.pop(action.dest))
+                kwpairs = iter(args[action.dest] or [])
                 for key in kwpairs:
                     try:
                         key, value = key.split('=', 1)
                     except ValueError:
                         value = next(kwpairs)
                         key = key.strip('-')
-                    kwargs[key] = value
+                    keywords[key] = value
             else:
                 raise RuntimeError("XXX: Impossible?")
-        if args:
-            raise RuntimeError("XXX: Impossible?")
-        self.func(*positionals, **kwargs)
+        return self.func(*positionals, **keywords)
 
     def setup_args(self, default_parser):
         sig = inspect.signature(self.func)
