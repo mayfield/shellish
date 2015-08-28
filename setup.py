@@ -15,8 +15,8 @@ def long_desc():
 
 setup(
     name='shellish',
-    version='0.0.3',
-    description='A shell framework for rich CLI programs.',
+    version='0.1.0',
+    description='A framework for CLI/shell programs.',
     author='Justin Mayfield',
     author_email='tooker@gmail.com',
     url='https://github.com/mayfield/shellish/',
@@ -26,9 +26,7 @@ setup(
     install_requires=[],
     test_suite='test',
     classifiers=[
-        'Development Status :: 1 - Planning',
-        #'Development Status :: 2 - Pre-Alpha',
-        #'Development Status :: 3 - Alpha',
+        'Development Status :: 3 - Alpha',
         #'Development Status :: 4 - Beta',
         #'Development Status :: 5 - Production/Stable',
         #'Development Status :: 6 - Mature',

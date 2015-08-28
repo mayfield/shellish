@@ -26,7 +26,7 @@ pip3 install shellish
     
 **Development Release**
 
-```sh
+```
 python3.4 ./setup.py build
 python3.4 ./setup.py install
 ```
