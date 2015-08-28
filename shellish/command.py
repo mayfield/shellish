@@ -120,7 +120,6 @@ class Command(object):
     @depth.setter
     def depth(self, value):
         """ Update ourself and any of our subcommands. """
-        #if hasattr(self, 'argparser'):
         for command in self.subcommands:
             command.depth = value + 1
             del command.argparser._defaults['command%d' % self._depth]
