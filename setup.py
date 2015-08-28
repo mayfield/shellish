@@ -15,7 +15,7 @@ def long_desc():
 
 setup(
     name='shellish',
-    version='0.1.99',
+    version='0.2.0',
     description='A framework for CLI/shell programs.',
     author='Justin Mayfield',
     author_email='tooker@gmail.com',
