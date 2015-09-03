@@ -9,6 +9,9 @@ The main benefit to using this package is streamlined command hierarchy when
 you want to have rich set of subcommands along with a pretty powerful tab
 completion layer that parses argparse arguments automagically.
 
+**[CHANGELOG](CHANGELOG.md)**
+
+
 Requirements
 --------
 
