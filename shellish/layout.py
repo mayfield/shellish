@@ -9,7 +9,7 @@ import math
 import shutil
 import sys
 
-__public__ = ['columnize', 'Table', 'tabular', 'vt100_print']
+__public__ = ['columnize', 'Table', 'tabulate', 'vt100_print']
 
 
 class VT100Parser(html.parser.HTMLParser):
@@ -49,7 +49,8 @@ class VT100Parser(html.parser.HTMLParser):
 
     def close(self):
         super().close()
-        self.buf.append(self.state[0])
+        if self.open_tags:
+            self.buf.append(self.state[0])
 
 vt100parser = VT100Parser()
 
@@ -103,13 +104,14 @@ class Table(object):
     def __init__(self, column_spec=None, headers=None, width=None, clip=True,
                  flex=True, file=sys.stdout, print=vt100_print,
                  header_format=None, cliptext_format=None, cliptext=None,
-                 min_column_width=None):
+                 min_column_width=None, column_pad=None):
         """ The .column_spec should be a list of width specs; Whole numbers
         are char widths, fractions are percentages of available width and None
         indicates the column is unspecified.  Unspec(ified) columns are then
         calculated at render time according to the .flex setting.  Note that
         the length of the column_spec list decides the column count for the
-        life of the table.
+        the table.  It is permissible to change the column_spec but it will
+        cause the table to be rerendered on the next write.
 
             Eg. column_spec=[
                     25, # fixed width, 25 chars
@@ -130,14 +132,11 @@ class Table(object):
         By default the columns will clip text that overflows; Set .clip to
         False to disable this behavior but be warned the table will not look
         good. """
+        self._column_spec = column_spec
         self.headers = headers
-        self.column_spec = column_spec
-        self.column_count = len(column_spec)
         self.width = width
-        if not clip:
-            self.overflow = self.overflow_show
-        else:
-            self.overflow = self.overflow_clip
+        self.clip = clip
+        self.overflow = self.overflow_clip if clip else self.overflow_show
         self.flex = flex
         self.file = file
         self.print = print
@@ -148,6 +147,17 @@ class Table(object):
             self.cliptext_format = cliptext_format
         if cliptext is not None:
             self.cliptext = cliptext
+        if column_pad is not None:
+            self.pad = column_pad
+        self.reset()
+
+    @property
+    def column_spec(self):
+        return self._column_spec
+
+    @column_spec.setter
+    def column_spec(self, spec):
+        self._column_spec = spec
         self.reset()
 
     def reset(self):
@@ -160,8 +170,8 @@ class Table(object):
     def overflow_clip(self, items, widths):
         clipseq = self.cliptext_format % self.cliptext
         cliplen = len(self.cliptext)
-        return tuple('%s%s' % (item[:width - cliplen], clipseq)
-                     if len(item) > width else item
+        return tuple('%s%s' % (str(item)[:width - cliplen], clipseq)
+                     if len(str(item)) > width else item
                      for item, width in zip(items, widths))
 
     def render(self, seed_data):
@@ -172,7 +182,7 @@ class Table(object):
         if self.render_spec:
             raise RuntimeError("Table already rendered")
         usable_width = self.width or shutil.get_terminal_size()[0]
-        usable_width -= self.pad * self.column_count
+        usable_width -= self.pad * len(self.column_spec)
         self.render_spec['usable_width'] = usable_width
         if self.flex and not hasattr(seed_data, '__getitem__'):
             seed_data = list(seed_data)  # Convert iter to sequence
@@ -201,7 +211,7 @@ class Table(object):
 
     def calc_widths(self, sample_data):
         """ Convert the column_spec into absolute col widths. """
-        spec = self.column_spec[:]
+        spec = list(self.column_spec)
         remaining = usable = self.render_spec['usable_width']
         unspec = []
         for i, x in enumerate(spec):
@@ -228,7 +238,7 @@ class Table(object):
         calculate the best concession widths. """
         colstats = []
         for i in cols:
-            lengths = [len(x[i]) for x in data]
+            lengths = [len(str(x[i])) for x in data]
             if self.headers:
                 lengths.append(len(self.headers[i]))
             counts = collections.Counter(lengths)
@@ -239,35 +249,35 @@ class Table(object):
                 "chop_count": 0,
                 "total_mass": sum(a * b for a, b in counts.items())
             })
+        if self.clip:
+            self.adjust_clipping(max_width, colstats)
+        return zip(cols, (x['offt'] for x in colstats))
+
+    def adjust_clipping(self, max_width, colstats):
+        """ Clip the columns based on the least negative affect it will have
+        on the viewing experience.  We take note of the total character mass
+        that will be clipped when each column should be narrowed.  The actual
+        score for clipping is based on percentage of total character mass,
+        which is the total number of characters in the column. """
+        next_score = lambda x: (x['counts'][x['offt']] + x['chop_mass'] + \
+                                x['chop_count']) / x['total_mass']
         cur_width = lambda: sum(x['offt'] for x in colstats)
-        print(colstats)
-        # The total character mass we WOULD be clipping for a column.
-        # This is the rank for our clip algo.  We try to equalize the clip
-        # mass for each column.
-        next_mass = lambda x: x['counts'][x['offt']] + x['chop_mass'] + \
-                              x['chop_count']
         min_width = self.min_column_width or len(self.cliptext)
         while cur_width() > max_width:
-            nextaffects = [(next_mass(x) / x['total_mass'], i) for i, x in enumerate(colstats)
+            nextaffects = [(next_score(x), i) for i, x in enumerate(colstats)
                            if x['offt'] > min_width]
             if not nextaffects:
-                print("PREMATURE SMALL")
-                print("PREMATURE SMALL")
-                print("PREMATURE SMALL")
-                break  # all columns are as small as they can get.
+                break  # All columns are as small as they can get.
             nextaffects.sort()
-            print("nexteffects", nextaffects)
             chop = colstats[nextaffects[0][1]]
             if chop['offt'] < len(self.cliptext):
-                print("SHOULD SKIP!!!!!!", chop)
+                raise SystemExit("NOPE, never again, right? %s" % chop)
             chop['chop_count'] += chop['counts'][chop['offt']]
             chop['chop_mass'] += chop['chop_count']
             chop['offt'] -= 1
-            print('chop', chop)
-        return zip(cols, (x['offt'] for x in colstats))
 
 
-def tabular(data, header=True, **table_options):
+def tabulate(data, header=True, **table_options):
     """ Shortcut function to produce tabular output of data without the
     need to create and configure a Table instance directly. The function
     does however return a table instance when it's done for any further use
@@ -276,9 +286,14 @@ def tabular(data, header=True, **table_options):
     # over the data for Table.calc_flex().
     try:
         firstrow = data[0]
+    except IndexError:
+        firstrow = None
     except TypeError:
-        firstrow = next(data)
-        if not header:
+        try:
+            firstrow = next(data)
+        except StopIteration:
+            firstrow = None
+        if firstrow and not header:
             def it(first, remain):
                 yield first
                 for x in remain:
@@ -288,7 +303,8 @@ def tabular(data, header=True, **table_options):
         if header:
             data = data[1:]
     headers = firstrow if header else None
-    colspec = [None] * len(firstrow)
+    colspec = [None] * len(firstrow) if firstrow else []
     t = Table(column_spec=colspec, headers=headers, **table_options)
-    t.write(data)
+    if firstrow and data:
+        t.write(data)
     return t

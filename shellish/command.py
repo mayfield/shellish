@@ -188,8 +188,8 @@ class Command(object):
     def columnize(self, *args, **kwargs):
         return layout.columnize(*args, **kwargs)
 
-    def tabular(self, *args, **kwargs):
-        return layout.tabular(*args, **kwargs)
+    def tabulate(self, *args, **kwargs):
+        return layout.tabulate(*args, **kwargs)
 
     def print(self, *args, **kwargs):
         return layout.vt100_print(*args, **kwargs)
