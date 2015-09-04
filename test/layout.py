@@ -3,39 +3,39 @@ import io
 import unittest
 from shellish import layout
 
-class Tabular(unittest.TestCase):
+class TabularUnflex(unittest.TestCase):
 
     def test_only_pct(self):
         t = layout.Table([
             (.10, 'ten'),
             (.40, 'fourty'),
             (.50, 'fifty')
-        ], 100)
-        self.assertEquals(t.calc_widths(100), [10, 40, 50])
+        ], 100, flex=False)
+        self.assertEquals(t.calc_widths([], 100), [10, 40, 50])
 
     def test_only_fixed(self):
         t = layout.Table([
             (10, 'ten'),
             (40, 'fourty'),
             (50, 'fifty')
-        ], 100)
-        self.assertEquals(t.calc_widths(100), [10, 40, 50])
+        ], 100, flex=False)
+        self.assertEquals(t.calc_widths([], 100), [10, 40, 50])
 
     def test_fixed_and_pct(self):
         t = layout.Table([
             (.10, 'ten'),
             (40, 'fourty'),
             (.50, 'fifty')
-        ], 100)
-        self.assertEquals(t.calc_widths(100), [10, 40, 50])
+        ], 100, flex=False)
+        self.assertEquals(t.calc_widths([], 100), [10, 40, 50])
 
     def test_uneven_pct(self):
         t = layout.Table([
             (1/3, 'ten'),
             (1/3, 'fourty'),
             (1/3, 'fifty')
-        ], 100)
-        self.assertEquals(t.calc_widths(100), [33, 33, 33])
+        ], 100, flex=False)
+        self.assertEquals(t.calc_widths([], 100), [33, 33, 33])
 
     def test_only_unspec_even(self):
         t = layout.Table([
@@ -43,29 +43,29 @@ class Tabular(unittest.TestCase):
             (None, 'two'),
             (None, 'three'),
             (None, 'four')
-        ], 100)
-        self.assertEquals(t.calc_widths(100), [25, 25, 25, 25])
+        ], 100, flex=False)
+        self.assertEquals(t.calc_widths([], 100), [25, 25, 25, 25])
 
     def test_only_unspec_odd(self):
         t = layout.Table([
             (None, 'one'),
             (None, 'two'),
             (None, 'three'),
-        ], 100)
-        self.assertEquals(t.calc_widths(100), [33, 33, 33])
+        ], 100, flex=False)
+        self.assertEquals(t.calc_widths([], 100), [33, 33, 33])
 
     def test_only_unspec_one(self):
         t = layout.Table([
             (None, 'one'),
-        ], 100)
-        self.assertEquals(t.calc_widths(100), [100])
+        ], 100, flex=False)
+        self.assertEquals(t.calc_widths([], 100), [100])
 
     def test_only_unspec_two(self):
         t = layout.Table([
             (None, 'one'),
             (None, 'two'),
-        ], 100)
-        self.assertEquals(t.calc_widths(100), [50, 50])
+        ], 100, flex=False)
+        self.assertEquals(t.calc_widths([], 100), [50, 50])
 
     def test_mixed(self):
         t = layout.Table([
@@ -73,8 +73,8 @@ class Tabular(unittest.TestCase):
             (.25, 'two'),
             (None, 'three'),
             (None, 'four'),
-        ], 100)
-        self.assertEquals(t.calc_widths(100), [25, 25, 25, 25])
+        ], 100, flex=False)
+        self.assertEquals(t.calc_widths([], 100), [25, 25, 25, 25])
 
     def test_mixed_odd(self):
         t = layout.Table([
@@ -84,8 +84,8 @@ class Tabular(unittest.TestCase):
             (None, 'four'),
             (None, 'five'),
             (None, 'six'),
-        ], 147)
-        self.assertEquals(t.calc_widths(147), [19, 98, 7, 7, 7, 7])
+        ], 147, flex=False)
+        self.assertEquals(t.calc_widths([], 147), [19, 98, 7, 7, 7, 7])
 
 
 class TableRendering(unittest.TestCase):

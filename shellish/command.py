@@ -11,7 +11,7 @@ import itertools
 import shlex
 import time
 import traceback
-from . import completer, shell
+from . import completer, shell, layout
 
 __public__ = ['Command', 'autocommand']
 
@@ -184,6 +184,15 @@ class Command(object):
         # Python's readline module is hardcoded to not insert spaces so we
         # have to add a space to each response to get more bash-like behavior.
         return ['%s ' % x for x in choices]
+
+    def columnize(self, *args, **kwargs):
+        return layout.columnize(*args, **kwargs)
+
+    def tabular(self, *args, **kwargs):
+        return layout.tabular(*args, **kwargs)
+
+    def print(self, *args, **kwargs):
+        return layout.vt100_print(*args, **kwargs)
 
     def complete(self, text, line, begin, end):
         """ Do naive argument parsing so the completer has better ability to

@@ -6,8 +6,8 @@ import cmd
 import os.path
 import readline
 import shlex
-import shutil
 import sys
+from . import layout
 
 __public__ = ['Shell']
 
@@ -73,11 +73,14 @@ class Shell(cmd.Cmd):
         """ Do not re-run the last command. """
         pass
 
-    def columnize(self, items, displaywidth=None):
-        """ Smart display width handling when showing a list of stuff. """
-        if displaywidth is None:
-            displaywidth, h = shutil.get_terminal_size()
-        return super().columnize(items, displaywidth=displaywidth)
+    def columnize(self, *args, **kwargs):
+        return layout.columnize(*args, **kwargs)
+
+    def tabular(self, *args, **kwargs):
+        return layout.tabular(*args, **kwargs)
+
+    def print(self, *args, **kwargs):
+        return layout.vt100_print(*args, **kwargs)
 
     def cmdloop(self):
         intro = ()
