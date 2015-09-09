@@ -8,7 +8,8 @@ import math
 import shutil
 import sys
 
-__public__ = ['columnize', 'Table', 'tabulate', 'vtprint', 'Tree', 'dicttree']
+__public__ = ['columnize', 'Table', 'tabulate', 'vtprint', 'Tree', 'dicttree',
+              'TreeNode']
 
 
 class VTParser(html.parser.HTMLParser):
@@ -314,12 +315,12 @@ def tabulate(data, header=True, **table_options):
 
 class TreeNode(object):
 
-    def __init__(self, title, children=None):
-        self.title = title
+    def __init__(self, value, children=None):
+        self.value = value
         self.children = children if children is not None else []
 
     def __lt__(self, item):
-        return self.title < item.title
+        return self.value < item.value
 
 
 class Tree(object):
@@ -335,9 +336,14 @@ class Tree(object):
         tree_T = '+-- '
         tree_vertspace = '|   '
 
-    def render(self, nodes, sort_criteria=None, prefix=None):
+    def __init__(self, formatter=None, sort_key=None):
+        self.formatter = formatter or (lambda x: x.value)
+        self.sort_key = sort_key
+
+    def render(self, nodes, prefix=None):
         end = len(nodes) - 1
-        nodes.sort(key=sort_criteria)
+        if self.sort_key is not False:
+            nodes = sorted(nodes, key=self.sort_key)
         for i, x in enumerate(nodes):
             if prefix is not None:
                 line = [prefix]
@@ -347,14 +353,14 @@ class Tree(object):
                     line.append(self.tree_T)
             else:
                 line = ['']
-            vtprint(''.join(line) + x.title)
+            vtprint(''.join(line) + self.formatter(x))
             if x.children:
                 if prefix is not None:
                     line[-1] = '    ' if end == i else self.tree_vertspace
                 self.render(x.children, prefix=''.join(line))
 
 
-def dicttree(data):
+def dicttree(data, **options):
     """ Render a tree structure based on a well formed dictionary. The keys
     should be titles and the values are children of the node or None if it's
     a leaf node.  E.g.
@@ -375,6 +381,6 @@ def dicttree(data):
     """
     def crawl(dictdata):
         return [TreeNode(k, v and crawl(v)) for k, v in dictdata.items()]
-    t = Tree()
+    t = Tree(**options)
     t.render(crawl(data))
     return t
