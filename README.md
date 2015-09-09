@@ -9,7 +9,11 @@ The main benefit to using this package is streamlined command hierarchy when
 you want to have rich set of subcommands along with a pretty powerful tab
 completion layer that parses argparse arguments automagically.
 
-**[CHANGELOG](CHANGELOG.md)**
+Status
+--------
+
+[![Change Log](https://img.shields.io/badge/change-log-blue.svg)](https://github.com/mayfield/shellish/blob/master/CHANGELOG.md)
+[![Build Status](https://semaphoreci.com/api/v1/projects/d925ee35-bede-4cc1-bbb8-17a738b84cfa/533600/shields_badge.svg)](https://semaphoreci.com/mayfield/shellish)
 
 
 Requirements
