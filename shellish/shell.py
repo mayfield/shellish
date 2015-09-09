@@ -45,7 +45,8 @@ class Shell(cmd.Cmd):
         delims = set(readline.get_completer_delims())
         delims |= self.completer_delim_includes
         delims -= self.completer_delim_excludes
-        readline.set_completer_delims(''.join(delims))
+        self.completer_delims = ''.join(delims)
+        readline.set_completer_delims(self.completer_delims)
         super().__init__()
 
     def wrap_command_invoke(self, cmd):
@@ -83,6 +84,9 @@ class Shell(cmd.Cmd):
 
     def vtprint(self, *args, **kwargs):
         return layout.vtprint(*args, **kwargs)
+
+    def tree(self, *args, **kwargs):
+        return layout.dicttree(*args, **kwargs)
 
     def handle_cmd_exc(self, exc):
         """ Do any formatting of cmdloop exceptions or simply reraise if the

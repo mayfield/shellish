@@ -194,6 +194,9 @@ class Command(object):
     def vtprint(self, *args, **kwargs):
         return layout.vtprint(*args, **kwargs)
 
+    def tree(self, *args, **kwargs):
+        return layout.dicttree(*args, **kwargs)
+
     def complete(self, text, line, begin, end):
         """ Do naive argument parsing so the completer has better ability to
         understand expansion rules. """

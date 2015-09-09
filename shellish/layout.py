@@ -8,8 +8,7 @@ import math
 import shutil
 import sys
 
-__public__ = ['columnize', 'Table', 'tabulate', 'vtprint', 'Tree', 'dicttree',
-              'TreeNode']
+__public__ = ['columnize', 'tabulate', 'vtprint', 'dicttree']
 
 
 class VTParser(html.parser.HTMLParser):
