@@ -191,8 +191,8 @@ class Command(object):
     def tabulate(self, *args, **kwargs):
         return layout.tabulate(*args, **kwargs)
 
-    def print(self, *args, **kwargs):
-        return layout.vt100_print(*args, **kwargs)
+    def vtprint(self, *args, **kwargs):
+        return layout.vtprint(*args, **kwargs)
 
     def complete(self, text, line, begin, end):
         """ Do naive argument parsing so the completer has better ability to

@@ -6,10 +6,11 @@
 - TBD
 
 ### Fixed
-- TBD
+- vtprint hardening (it will degrade quietly when the parser fails).
 
 ### Added
-- TBD
+- Tree printer and convenience dicttree helper function.
+- Configurable exception handling for Shell.
 
 ### Removed
 - TBD

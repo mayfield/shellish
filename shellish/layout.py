@@ -4,16 +4,15 @@ Functions for displaying content with screen aware layout.
 
 import collections
 import html.parser
-import io
 import math
 import shutil
 import sys
 
-__public__ = ['columnize', 'Table', 'tabulate', 'vt100_print']
+__public__ = ['columnize', 'Table', 'tabulate', 'vtprint', 'Tree', 'dicttree']
 
 
-class VT100Parser(html.parser.HTMLParser):
-    """ Add some SGML style tag support for a few vt100 operations. """
+class VTParser(html.parser.HTMLParser):
+    """ Add some SGML style tag support for a few VT100 operations. """
 
     tags = {
         'normal': '\033[0m',
@@ -52,27 +51,30 @@ class VT100Parser(html.parser.HTMLParser):
         if self.open_tags:
             self.buf.append(self.state[0])
 
-vt100parser = VT100Parser()
+vtparser = VTParser()
 
 
-def vt100_print(*values, file=sys.stdout, **options):
+def vtprint(*unformatted, **options):
     """ Follow normal print() signature but look for vt100 codes for richer
-    output. I've intentionally left ouf color for now for strictly personal
-    reasons. """
-    prerender = io.StringIO()
-    end_save = options.pop('end', None)
-    print(*values, file=prerender, end='', **options)
-    try:
-        vt100parser.feed(prerender.getvalue())
-        vt100parser.close()
-        fullrender = ''.join(vt100parser.buf)
-    finally:
-        vt100parser.reset()
-    print(fullrender, file=file, end=end_save, **options)
+    output. I've intentionally left ouf color for personal reasons. """
+    formatted = []
+    for obj in unformatted:
+        try:
+            vtparser.feed(str(obj))
+            vtparser.close()
+        except:
+            formatted.append(obj)
+        else:
+            formatted.append(''.join(vtparser.buf))
+        finally:
+            vtparser.reset()
+    print(*formatted, **options)
 
 
-def columnize(items, width=None, file=sys.stdout, print=vt100_print):
+def columnize(items, width=None, file=sys.stdout, print=vtprint):
     """ Smart display width handling when showing a list of stuff. """
+    if not items:
+        return
     if width is None:
         width, h = shutil.get_terminal_size()
     items = tuple(str(x) for x in items)
@@ -102,7 +104,7 @@ class Table(object):
         cliptext = '...'
 
     def __init__(self, column_spec=None, headers=None, width=None, clip=True,
-                 flex=True, file=sys.stdout, print=vt100_print,
+                 flex=True, file=sys.stdout, print=vtprint,
                  header_format=None, cliptext_format=None, cliptext=None,
                  min_column_width=None, column_pad=None):
         """ The .column_spec should be a list of width specs; Whole numbers
@@ -307,4 +309,72 @@ def tabulate(data, header=True, **table_options):
     t = Table(column_spec=colspec, headers=headers, **table_options)
     if firstrow and data:
         t.write(data)
+    return t
+
+
+class TreeNode(object):
+
+    def __init__(self, title, children=None):
+        self.title = title
+        self.children = children if children is not None else []
+
+    def __lt__(self, item):
+        return self.title < item.title
+
+
+class Tree(object):
+    """ Construct a visual tree from a data source. """
+
+    tree_L = '└── '.encode().decode()
+    tree_T = '├── '
+    tree_vertspace = '│   '
+    try:
+        tree_L.encode(sys.stdout.encoding)
+    except UnicodeEncodeError:
+        tree_L = '\-- '
+        tree_T = '+-- '
+        tree_vertspace = '|   '
+
+    def render(self, nodes, sort_criteria=None, prefix=None):
+        end = len(nodes) - 1
+        nodes.sort(key=sort_criteria)
+        for i, x in enumerate(nodes):
+            if prefix is not None:
+                line = [prefix]
+                if end == i:
+                    line.append(self.tree_L)
+                else:
+                    line.append(self.tree_T)
+            else:
+                line = ['']
+            vtprint(''.join(line) + x.title)
+            if x.children:
+                if prefix is not None:
+                    line[-1] = '    ' if end == i else self.tree_vertspace
+                self.render(x.children, prefix=''.join(line))
+
+
+def dicttree(data):
+    """ Render a tree structure based on a well formed dictionary. The keys
+    should be titles and the values are children of the node or None if it's
+    a leaf node.  E.g.
+
+        sample = {
+            "Leaf 1": None,
+            "Leaf 2": None,
+            "Branch A": {
+                "Sub Leaf 1": None,
+                "Sub Branch": {
+                    "Deep Leaf": None
+                }
+            },
+            "Branch B": {
+                "Sub Leaf 2": None
+            }
+        }
+    """
+    def crawl(dictdata):
+        return [TreeNode(k, v and crawl(v)) for k, v in dictdata.items()]
+    t = Tree()
+    t.render(crawl(data))
     return t

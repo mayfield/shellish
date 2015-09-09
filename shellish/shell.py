@@ -7,6 +7,7 @@ import os.path
 import readline
 import shlex
 import sys
+import traceback
 from . import layout
 
 __public__ = ['Shell']
@@ -25,6 +26,7 @@ class Shell(cmd.Cmd):
     intro = 'Type "help" or "?" to list commands and "exit" to quit.'
     completer_delim_includes = frozenset()
     completer_delim_excludes = frozenset('-+@:')
+    exception_verbosity = 'traceback' # {'raise', 'traceback', 'pretty'}
 
     def __init__(self, root_command):
         self.root_command = root_command
@@ -79,8 +81,27 @@ class Shell(cmd.Cmd):
     def tabulate(self, *args, **kwargs):
         return layout.tabulate(*args, **kwargs)
 
-    def print(self, *args, **kwargs):
-        return layout.vt100_print(*args, **kwargs)
+    def vtprint(self, *args, **kwargs):
+        return layout.vtprint(*args, **kwargs)
+
+    def handle_cmd_exc(self, exc):
+        """ Do any formatting of cmdloop exceptions or simply reraise if the
+        error is bad enough. """
+        if self.exception_verbosity == 'traceback':
+            self.pretty_print_exc(exc)
+            print(*traceback.format_exception(*sys.exc_info()))
+            return
+        elif self.exception_verbosity == 'raise':
+            raise exc from None
+        elif self.exception_verbosity == 'pretty':
+            self.pretty_print_exc(exc)
+            return
+        else:
+            raise ValueError("Unexpected exception_verbosity: %s" %
+                             self.exception_verbosity)
+
+    def pretty_print_exc(self, exc):
+        self.vtprint("<b>Command Error:</b>", exc)
 
     def cmdloop(self):
         intro = ()
@@ -94,6 +115,8 @@ class Shell(cmd.Cmd):
             except SystemExit as e:
                 if not str(e).isnumeric():
                     print(e, file=sys.stderr)
+            except Exception as e:
+                self.handle_cmd_exc(e)
             finally:
                 readline.write_history_file(self.history_file)
             if not intro:
