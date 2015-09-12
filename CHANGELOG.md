@@ -3,16 +3,21 @@
 
 ## [Unreleased] - unreleased
 ### Added
-- TBD
+- Custom per/user configuration file reader.
+- Custom prompt using ^
+- Per/column style for table.
+  You can set padding, width, minwidth, and align settings on each column
 
 ### Changed
-- TBD
+- Command.shell() renamed to Command.interact()
+- Command.inject_context accepts a dictionary or kwargs and will cascade
+  new values to subcommands.
 
 ### Removed
 - TBD
 
 ### Fixed
-- TBD
+- Table handling for vtml strings that overflow.
 
 
 ## [0.4.0] - 2015-09-09
