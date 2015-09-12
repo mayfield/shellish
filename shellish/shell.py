@@ -2,6 +2,7 @@
 The interactive portions of shellish.
 """
 
+import ast
 import cmd
 import configparser
 import os.path
@@ -22,7 +23,7 @@ class Shell(cmd.Cmd):
     """ The interactive manager for a session of command calls.  This babysits
     a tree of commands until the user requests our exit. """
 
-    prompt = '$ '
+    default_prompt_format = '[{name}] $ '
     history_dir = os.path.expanduser('~')
     config_dir = os.path.expanduser('~')
     intro = 'Type "help" or "?" to list commands and "exit" to quit.'
@@ -37,6 +38,8 @@ class Shell(cmd.Cmd):
         self.config = self.load_config()
         self.history_file = self.load_history()
         self.setup_readline()
+        raw_prompt = self.config['ui']['prompt_format']
+        self.prompt_format = ast.literal_eval("'%s '" % raw_prompt)
         for x in root_command.subcommands:
             setattr(self, 'do_%s' % x.name, self.wrap_command_invoke(x))
             setattr(self, 'help_%s' % x.name, x.argparser.print_help)
@@ -44,10 +47,21 @@ class Shell(cmd.Cmd):
         super().__init__()
 
     @property
+    def prompt(self):
+        return self.prompt_format.format(**self.prompt_info())
+
+    def prompt_info(self):
+        """ Return a dictionary of items that can be substituted into the
+        prompt_format by the subclass or it's user if customized in the
+        config file by them. """
+        return {
+            "name": self.name,
+        }
+
     def default_config(self):
         return {
             "ui": {
-                "prompt": self.prompt
+                "prompt_format": self.default_prompt_format
             }
         }
 
@@ -68,7 +82,8 @@ class Shell(cmd.Cmd):
 
     def load_config(self):
         filename = os.path.join(self.config_dir, '.%s_config' % self.name)
-        config = configparser.ConfigParser(self.default_config)
+        config = configparser.ConfigParser()
+        config.read_dict(self.default_config())
         config.read(filename)
         return config
 
