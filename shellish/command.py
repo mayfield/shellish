@@ -94,12 +94,15 @@ class Command(object):
         else:
             self.depth = 0
 
-    def inject_context(self, context):
+    def inject_context(self, __context_dict__=None, **context):
         """ Map context dict to this instance as attributes and keep note of
         the keys being set so we can pass this along to any subcommands. """
+        context = context or __context_dict__
         self.context_keys |= set(context.keys())
         for key, value in context.items():
             setattr(self, key, value)
+        for command in self.subcommands:
+            command.inject_context(context)
 
     @property
     def prog(self):
@@ -126,10 +129,12 @@ class Command(object):
             command.argparser._defaults['command%d' % value] = command
         self._depth = value
 
-    def shell(self):
+    def interact(self):
         """ Run this command in shell mode.  Note that this loops until the
         user quits the session. """
-        self.Shell(self).cmdloop()
+        shell = self.Shell(self)
+        self.inject_context(shell=shell)
+        shell.cmdloop()
 
     def add_argument(self, *args, complete=None, **kwargs):
         """ Allow cleaner action supplementation. """

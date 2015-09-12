@@ -3,6 +3,7 @@ The interactive portions of shellish.
 """
 
 import cmd
+import configparser
 import os.path
 import readline
 import shlex
@@ -23,6 +24,7 @@ class Shell(cmd.Cmd):
 
     prompt = '$ '
     history_dir = os.path.expanduser('~')
+    config_dir = os.path.expanduser('~')
     intro = 'Type "help" or "?" to list commands and "exit" to quit.'
     completer_delim_includes = frozenset()
     completer_delim_excludes = frozenset('-+@:')
@@ -32,22 +34,43 @@ class Shell(cmd.Cmd):
         self.root_command = root_command
         self.name = root_command.name
         root_command.prog = ''
-        self.history_file = os.path.join(self.history_dir,
-                                         '.%s_history' % self.name)
-        try:
-            readline.read_history_file(self.history_file)
-        except FileNotFoundError:
-            pass
+        self.config = self.load_config()
+        self.history_file = self.load_history()
+        self.setup_readline()
         for x in root_command.subcommands:
             setattr(self, 'do_%s' % x.name, self.wrap_command_invoke(x))
             setattr(self, 'help_%s' % x.name, x.argparser.print_help)
             setattr(self, 'complete_%s' % x.name, x.complete_wrap)
+        super().__init__()
+
+    @property
+    def default_config(self):
+        return {
+            "ui": {
+                "prompt": self.prompt
+            }
+        }
+
+    def setup_readline(self):
         delims = set(readline.get_completer_delims())
         delims |= self.completer_delim_includes
         delims -= self.completer_delim_excludes
         self.completer_delims = ''.join(delims)
         readline.set_completer_delims(self.completer_delims)
-        super().__init__()
+
+    def load_history(self):
+        filename = os.path.join(self.history_dir, '.%s_history' % self.name)
+        try:
+            readline.read_history_file(filename)
+        except FileNotFoundError:
+            pass
+        return filename
+
+    def load_config(self):
+        filename = os.path.join(self.config_dir, '.%s_config' % self.name)
+        config = configparser.ConfigParser(self.default_config)
+        config.read(filename)
+        return config
 
     def wrap_command_invoke(self, cmd):
         def wrap(arg):
