@@ -155,7 +155,7 @@ def vtformat(unformatted, **options):
 
 def vtprint(*unformatted, **options):
     """ Follow normal print() signature but look for vt100 codes for richer
-    output. I've intentionally left out color for personal reasons. """
+    output. """
     print(*[vtformat(x) for x in unformatted], **options)
 
 
@@ -305,11 +305,11 @@ class Table(object):
             "align": self.column_align
         } for x in range(self.column_count)]
         if overrides_spec:
-            for i, x in enumerate(overrides_spec):
-                if hasattr(x, 'items'):
-                    spec[i].update(x)
+            for dst, src in zip(spec, overrides_spec):
+                if hasattr(src, 'items'):
+                    dst.update(src)
                 else:
-                    spec[i]['width'] = x
+                    dst['width'] = src
         return spec
 
     def reset(self):
