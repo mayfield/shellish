@@ -199,12 +199,12 @@ class TableRenderer(object):
     """ A bundle of state for a particular table rendering job.  Each time a
     table is to be printed to a file or the screen a new instance of this
     object will be used to provide closure on the column spec and so forth.
-    This is essentially frozen state computed from a table instances
+    This is essentially frozen state computed from a table instance's
     definition. """
 
     def __init__(self, colspec=None, accessors=None, table=None,
                  seed_data=None):
-        """ All calculated and values required for rendering a table are kept
+        """ All calculated values required for rendering a table are kept
         here.  In theory a single Table instance can be used to render
         multiple and differing datasets in a concurrent system.  Admittedly
         this is over-engineered for a CLI suite and the result of a lazy
@@ -355,7 +355,13 @@ class TableRenderer(object):
 
 
 class Table(object):
-    """ Capture the state for a table such as column sizes and headers. """
+    """ A visual layout for row oriented data (like csv).  Most of the code
+    here is dedicated to fitting the data as losslessly as possible onto a
+    terminal screen.  The basic design goal is to fit your rows onto the
+    screen without overflowing;  However a table instance can be configured
+    to overflow if desired (clip=False).  For detailed help on using this
+    class, see the __init__ method, or use the helper function tabulate() for
+    simple use cases. """
 
     header_format = '<reverse>%s</reverse>'
     column_padding = 2
