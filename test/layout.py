@@ -1,7 +1,7 @@
 
 import io
 import unittest
-from shellish.layout import Table, vtmlrender
+from shellish.layout import Table, vtmlrender, tabulate
 
 class TabularUnflex(unittest.TestCase):
 
@@ -72,7 +72,7 @@ class TableRendering(unittest.TestCase):
                               flex=False)
         fits = 'A' * 10
         clipped = 'B' * 10
-        t.render([[fits + clipped]])
+        t.print([[fits + clipped]])
         res = self.get_lines()[0]
         self.assertEqual(res, fits)
 
@@ -82,7 +82,7 @@ class TableRendering(unittest.TestCase):
                                   flex=False)
             fits = 'A' * (10 - len(cliptext))
             clipped = 'B' * 10
-            t.render([[fits + clipped]])
+            t.print([[fits + clipped]])
             res = self.get_lines()[0]
             self.assertEqual(res, fits + cliptext)
 
@@ -229,3 +229,51 @@ class VTMLStringTests(unittest.TestCase):
         a1 += vtmlrender('BBBB')
         a2 = vtmlrender('aaaaBBBB')
         self.assertEqual(a1, a2)
+
+
+class TableDataSupport(unittest.TestCase):
+
+    def table(self, *args, **kwargs):
+        file = io.StringIO()
+        output = lambda: file.getvalue().splitlines()
+        return output, Table(*args, file=file, **kwargs)
+
+    def test_columns_from_only_list_data(self):
+        output, t = self.table()
+        t.print([['one', 'two', 'three']])
+        output, t = self.table()
+        t.print([['one', 'two', 'three']] * 10)
+
+    def test_columns_from_only_generator_data(self):
+        output, t = self.table()
+        def gen():
+            yield ['one', 'two', 'three']
+        t.print(gen())
+        self.assertEqual(len(output()), 1)
+
+        output, t = self.table()
+        def gen():
+            yield ['one', 'two', 'three']
+            yield ['one', 'two', 'three']
+        t.print(gen())
+        self.assertEqual(len(output()), 2)
+
+    def test_columns_from_headers(self):
+        output, t = self.table(headers=['One', 'Two', 'Three'])
+        t.print([['one', 'two', 'three']])
+
+    def test_columns_from_accessors(self):
+        output, t = self.table(accessors=['one', 'two', 'three'])
+        t.print([{'one': 'ONE', 'two': 'TWO', 'three': 'THREE'}])
+
+    def test_columns_from_none_is_error(self):
+        output, t = self.table()
+        self.assertRaises(ValueError, t.render)
+
+    def test_columns_width_spec_only(self):
+        output, t = self.table(columns=[None, None, None])
+        t.render()
+
+    def test_columns_empty_style_spec(self):
+        output, t = self.table(columns=[{}, {}, {}])
+        t.render()

@@ -65,6 +65,10 @@ class VTML(object):
     """ A str-like object that has an adjusted length to compensate for
     nonvisual vt100 opcodes which do not occupy space in the output. """
 
+    __slots__ = [
+        'values',
+        'visual_len'
+    ]
     reset_opcode = '\033[0m'
 
     def __init__(self, *values, length_hint=None):
@@ -98,7 +102,7 @@ class VTML(object):
         return ''.join(x for x in self.values if not self.is_opcode(x))
 
     def is_opcode(self, item):
-        return item.startswith('\033')
+        return item and item[0] == '\033'
 
     def clip(self, length, cliptext=''):
         """ Use instead of slicing to compensate for opcode behavior. """
@@ -129,34 +133,30 @@ class VTML(object):
             buf.append(self.reset_opcode)
         return type(self)(*buf, length_hint=length)
 
-    def padding(self, width, fillchar):
-        pad = width - self.visual_len
-        return fillchar * pad
-
     def ljust(self, width, fillchar=' '):
-        pad = self.padding(width, fillchar)
-        if not pad:
+        if width <= self.visual_len:
             return self
-        padded = self.values + (pad,)
-        return type(self)(*padded, length_hint=width)
+        pad = (fillchar * (width - self.visual_len),)
+        return type(self)(*self.values+pad, length_hint=width)
 
     def rjust(self, width, fillchar=' '):
-        pad = self.padding(width, fillchar)
-        if not pad:
+        if width <= self.visual_len:
             return self
-        padded = (pad,) + self.values
-        return type(self)(*padded, length_hint=width)
+        pad = (fillchar * (width - self.visual_len),)
+        return type(self)(*pad+self.values, length_hint=width)
 
     def center(self, width, fillchar=' '):
-        pad = self.padding(width, fillchar)
-        if not pad:
+        if width <= self.visual_len:
             return self
-        half = len(pad) // 2
-        padded = (pad[:half],) + self.values + (pad[half:],)
-        return type(self)(*padded, length_hint=width)
+        padlen = width - self.visual_len
+        leftlen = padlen // 2
+        rightlen = padlen - leftlen
+        leftpad = (fillchar * leftlen,)
+        rightpad = (fillchar * rightlen,)
+        return type(self)(*leftpad+self.values+rightpad, length_hint=width)
 
 
-def vtmlrender(vtmarkup, **options):
+def vtmlrender(vtmarkup):
     """ Look for vt100 markup and render to vt opcodes. """
     try:
         vtmlparser.feed(vtmarkup)
@@ -172,7 +172,7 @@ def vtmlrender(vtmarkup, **options):
 def vtmlprint(*values, **options):
     """ Follow normal print() signature but look for vt100 codes for richer
     output. """
-    print(*[vtmlrender(x) for x in values], **options)
+    print(*map(vtmlrender, values), **options)
 
 
 def columnize(items, width=None, file=sys.stdout):
@@ -212,7 +212,7 @@ class TableRenderer(object):
         self.colspec = colspec
         self.accessors = accessors
         self.capture_table_state(table)
-        self.seed = list(self.render_data(seed_data))
+        self.seed = seed_data and list(self.render_data(seed_data))
         self.widths = self.calc_widths(self.seed)
         self.formatters = self.create_formatters()
         self.headers_drawn = not self.headers
@@ -255,6 +255,7 @@ class TableRenderer(object):
         self.headers_drawn = True
 
     def print(self, data):
+        self.flush()
         self.print_rendered(self.render_data(data))
 
     def overflow_show(self, item, width):
@@ -274,14 +275,13 @@ class TableRenderer(object):
         }
         formatters = []
         overflow = self.overflow_clip if self.clip else self.overflow_show
-        for spec, width in zip(self.colspec, self.widths):
+        for spec, inner_w in zip(self.colspec, self.widths):
             align_fnname = align_funcs[spec['align']]
-            def closure():
-                inner_w = width
-                outer_w = width + spec['padding']
-                align = operator.methodcaller(align_fnname, inner_w)
-                return lambda x: align(overflow(x, inner_w)).center(outer_w)
-            formatters.append(closure())
+            outer_w = inner_w + spec['padding']
+            align = operator.methodcaller(align_fnname, inner_w)
+            def fn(x, inner_w=inner_w, outer_w=outer_w, align=align):
+                return align(overflow(x, inner_w)).center(outer_w)
+            formatters.append(fn)
         return formatters
 
     def calc_widths(self, sample_data):
@@ -500,14 +500,14 @@ class Table(object):
         colspec = self.create_colspec(columns)
         renderer = TableRenderer(colspec, accessors, self, seed_data)
         self.default_renderer = renderer
-        renderer.flush()
         return renderer
 
     def print(self, rows):
         """ Write the data to our output stream (stdout).  If the table is not
         rendered yet, we will force a render now. """
         if not self.default_renderer:
-            self.render(rows)
+            r = self.render(rows)
+            r.flush()
             return
         self.default_renderer.print(rows)
 
