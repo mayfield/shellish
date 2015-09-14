@@ -28,7 +28,7 @@ class Root(shellish.Command):
         self.add_subcommand(subcommand2)
 
     def run(self, args):
-        self.shell()
+        self.interact()
 
 root = Root()
 root()

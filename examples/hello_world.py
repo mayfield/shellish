@@ -7,7 +7,7 @@ class Hello(shellish.Command):
 
     def run(self, args):
         """ Just run the shell if a subcommand was not given. """
-        self.shell()
+        self.interact()
 
 
 class World(shellish.Command):
