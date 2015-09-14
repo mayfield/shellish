@@ -2,7 +2,7 @@ shellish - Command-line/shell mashup framework.
 ===========
 
 This module combines the Python standard library modules argparse and cmd
-to provided a unified way to make cli programs that can also be interactive
+to provide a unified way to make cli programs that can also be interactive
 (when invoked in "shell" mode).
 
 The main benefit to using this package is streamlined command hierarchy when
