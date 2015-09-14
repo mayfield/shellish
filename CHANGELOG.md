@@ -1,7 +1,9 @@
 # Change Log
 
-
 ## [Unreleased] - unreleased
+
+
+## [0.5.0] - 2015-09-13
 ### Added
 - Custom per/user configuration file reader.
 - Custom prompt using ^
@@ -17,11 +19,10 @@
   used to define the config, but at render time a TableRenderer instance is
   created which holds the calculated state for a table.  This renderer state
   can be passed around and used for rendering/printing more data later.
+- Renamed Table.write to Table.print (same for write_row).
+- Renamed Table(column_spec=None) to just columns.
+- Table(column_spec) is now optional.
   
-
-### Removed
-- TBD
-
 ### Fixed
 - Table handling for vtml strings that overflow.
 - Column padding is applied to left and right of the inner data now.
@@ -48,7 +49,8 @@
 - First stable release
 
 
-[unreleased]: https://github.com/mayfield/shellish/compare/v0.4.0...HEAD
+[unreleased]: https://github.com/mayfield/shellish/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/mayfield/shellish/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/mayfield/shellish/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/mayfield/shellish/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/mayfield/shellish/compare/3842251dad35c364ce3a63da04e0a5c593d1a156...v0.2.0
