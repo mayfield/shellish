@@ -120,8 +120,8 @@ class Shell(cmd.Cmd):
     def tabulate(self, *args, **kwargs):
         return layout.tabulate(*args, **kwargs)
 
-    def vtprint(self, *args, **kwargs):
-        return layout.vtprint(*args, **kwargs)
+    def vtmlprint(self, *args, **kwargs):
+        return layout.vtmlprint(*args, **kwargs)
 
     def tree(self, *args, **kwargs):
         return layout.dicttree(*args, **kwargs)
@@ -143,7 +143,7 @@ class Shell(cmd.Cmd):
                              self.exception_verbosity)
 
     def pretty_print_exc(self, exc):
-        self.vtprint("<b>Command Error:</b>", exc)
+        self.vtmlprint("<b>Command Error:</b>", exc)
 
     def cmdloop(self):
         intro = ()

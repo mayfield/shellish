@@ -1,15 +1,13 @@
 
 import io
 import unittest
-from shellish.layout import Table, vtformat
+from shellish.layout import Table, vtmlrender
 
 class TabularUnflex(unittest.TestCase):
 
-    def calc_table(self, *column_spec, width=100, flex=False, pad=0):
-        t = Table(column_spec=column_spec, width=width, flex=flex,
-                  column_padding=0)
-        t.render([])
-        return t.render_spec['widths']
+    def calc_table(self, *columns, width=100):
+        t = Table(columns=columns, width=width, flex=False, column_padding=0)
+        return t.render([]).widths
 
     def test_only_pct(self):
         widths = self.calc_table(.10, .40, .50)
@@ -65,7 +63,7 @@ class TableRendering(unittest.TestCase):
     def test_show_mode(self):
         t = self.render_table([10], width=10, clip=False, flex=False)
         text = 'A' * 20
-        t.write_row([text])
+        t.print_row([text])
         res = self.get_lines()[0]
         self.assertEqual(res, text)
 
@@ -92,23 +90,29 @@ class TableRendering(unittest.TestCase):
         t = self.render_table([None, None, None], width=40)
         text_a = ['1', '22', '333']
         text_b = ['333', '4444', '55555']
-        t.write([text_a, text_b])
+        t.print([text_a, text_b])
         first, second = self.get_lines()
         self.assertEqual(len(first.split()), 3)
         self.assertEqual(len(second.split()), 1)
-        for i in range(1, 3):
-            t = self.render_table([None, None, None], column_padding=i,
-                                  width=40)
-            t.write([text_a, text_b])
-            first, second = self.get_lines()
-            self.assertEqual(second, (' ' * i).join(text_b) + (' ' * i))
+        t = self.render_table(column_padding=1, width=40)
+        t.print([text_a, text_b])
+        first, second = self.get_lines()
+        self.assertEqual(second, '333 4444 55555 ')
+        t = self.render_table(column_padding=2, width=40)
+        t.print([text_a, text_b])
+        first, second = self.get_lines()
+        self.assertEqual(second, ' 333  4444  55555 ')
+        t = self.render_table(column_padding=3, width=40)
+        t.print([text_a, text_b])
+        first, second = self.get_lines()
+        self.assertEqual(second, ' 333   4444   55555  ')
 
 
-class VTML(unittest.TestCase):
+class VTMLStringTests(unittest.TestCase):
 
     def test_vtstr_overclip_plain(self):
         startval = 'A' * 10
-        s = vtformat(startval)
+        s = vtmlrender(startval)
         self.assertEqual(s.clip(11), startval)
         self.assertEqual(s.clip(11).text(), startval)
         self.assertEqual(s.clip(20), startval)
@@ -116,13 +120,13 @@ class VTML(unittest.TestCase):
 
     def test_vtstr_noclip_plain(self):
         startval = 'A' * 10
-        s = vtformat(startval)
+        s = vtmlrender(startval)
         self.assertEqual(s.clip(10), startval)
         self.assertEqual(s.clip(10).text(), startval)
 
     def test_vtstr_underclip_plain(self):
         startval = 'A' * 10
-        s = vtformat(startval)
+        s = vtmlrender(startval)
         self.assertEqual(s.clip(9), startval[:9])
         self.assertEqual(s.clip(9).text(), startval[:9])
         self.assertEqual(s.clip(4), startval[:4])
@@ -135,7 +139,7 @@ class VTML(unittest.TestCase):
 
     def test_vtstr_overclip_vtml(self):
         startval = 'A' * 10
-        s = vtformat('<b>%s</b>' % startval)
+        s = vtmlrender('<b>%s</b>' % startval)
         self.assertEqual(s.clip(11).text(), startval)
         self.assertEqual(s.clip(20).text(), startval)
         self.assertEqual(s.clip(11), s)
@@ -143,13 +147,13 @@ class VTML(unittest.TestCase):
 
     def test_vtstr_noclip_vtml(self):
         startval = 'A' * 10
-        s = vtformat('<b>%s</b>' % startval)
+        s = vtmlrender('<b>%s</b>' % startval)
         self.assertEqual(s.clip(10).text(), startval)
         self.assertEqual(s.clip(10), s)
 
     def test_vtstr_underclip_vtml(self):
         startval = 'A' * 10
-        s = vtformat('<b>%s</b>' % startval)
+        s = vtmlrender('<b>%s</b>' % startval)
         self.assertEqual(s.clip(9).text(), startval[:9])
         self.assertEqual(str(s.clip(9)).count('A'), 9)
         self.assertEqual(s.clip(4).text(), startval[:4])
@@ -161,12 +165,12 @@ class VTML(unittest.TestCase):
         self.assertRaises(ValueError, s.clip, -10)
 
     def test_vtstr_underclip_vtml_reset(self):
-        s = vtformat('<b>%s</b>' % 'AAAA')
+        s = vtmlrender('<b>%s</b>' % 'AAAA')
         self.assertTrue(str(s.clip(2)).endswith('\033[0m'))
 
     def test_vtstr_overclip_with_cliptextt(self):
         startval = 'A' * 10
-        s = vtformat(startval)
+        s = vtmlrender(startval)
         self.assertEqual(s.clip(12, '.'), startval)
         self.assertEqual(s.clip(11, '.'), startval)
         self.assertEqual(s.clip(10, '.'), startval)
@@ -179,7 +183,7 @@ class VTML(unittest.TestCase):
 
     def test_vtstr_underclip_with_cliptextt(self):
         startval = 'A' * 10
-        s = vtformat(startval)
+        s = vtmlrender(startval)
         self.assertEqual(s.clip(9, '.'), startval[:8] + '.')
         self.assertEqual(s.clip(8, '.'), startval[:7] + '.')
         self.assertEqual(s.clip(7, '.'), startval[:6] + '.')
@@ -190,3 +194,38 @@ class VTML(unittest.TestCase):
         self.assertEqual(s.clip(8, '...'), startval[:5] + '...')
         self.assertEqual(s.clip(7, '...'), startval[:4] + '...')
         self.assertEqual(s.clip(6, '...'), startval[:3] + '...')
+
+    def test_bad_data(self):
+        bad = [
+            None,
+            0,
+            1,
+            ['asdf', 'asdf'],
+            [None, None],
+            '<nope>asdf',
+            '<b>asdf</notit>',
+        ]
+        for x in bad:
+            self.assertEqual(vtmlrender(x), x)
+
+    def test_ordering(self):
+        self.assertGreater(vtmlrender('bbbb'), vtmlrender('aaaa'))
+        self.assertLess(vtmlrender('aaaa'), vtmlrender('bbbb'))
+        self.assertGreaterEqual(vtmlrender('bbbb'), vtmlrender('aaaa'))
+        self.assertGreaterEqual(vtmlrender('aaaa'), vtmlrender('aaaa'))
+        self.assertLessEqual(vtmlrender('aaaa'), vtmlrender('bbbb'))
+        self.assertLessEqual(vtmlrender('aaaa'), vtmlrender('aaaa'))
+        self.assertEqual(vtmlrender('aaaa'), vtmlrender('aaaa'))
+
+    def test_add_same_type(self):
+        a = vtmlrender('aaaa')
+        b = vtmlrender('BBBB')
+        ab = vtmlrender('aaaaBBBB')
+        self.assertEqual(a+b, ab)
+        self.assertEqual(str(a+b), str(ab))
+
+    def test_iadd_same_type(self):
+        a1 = vtmlrender('aaaa')
+        a1 += vtmlrender('BBBB')
+        a2 = vtmlrender('aaaaBBBB')
+        self.assertEqual(a1, a2)

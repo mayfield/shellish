@@ -12,12 +12,20 @@
 - Command.shell() renamed to Command.interact()
 - Command.inject_context accepts a dictionary or kwargs and will cascade
   new values to subcommands.
+- Renamed vt prefixes to vtml. ie. vtprint -> vtmlprint, etc.
+- Split out table render state into its own class.  The Table class is
+  used to define the config, but at render time a TableRenderer instance is
+  created which holds the calculated state for a table.  This renderer state
+  can be passed around and used for rendering/printing more data later.
+  
 
 ### Removed
 - TBD
 
 ### Fixed
 - Table handling for vtml strings that overflow.
+- Column padding is applied to left and right of the inner data now.
+- Column minwidth handling fixed when no clipping was required.
 
 
 ## [0.4.0] - 2015-09-09
