@@ -520,14 +520,17 @@ def tabulate(data, header=True, **table_options):
     need to create and configure a Table instance directly. The function
     does however return a table instance when it's done for any further use
     by he user. """
-    if header:
+    empty = not data
+    headers = None
+    if not empty and header:
         data = iter(data)
         try:
             headers = next(data)
         except StopIteration:
-            headers = None
+            empty = True
     t = Table(headers=headers, **table_options)
-    t.print(data)
+    if not empty:
+        t.print(data)
     return t
 
 

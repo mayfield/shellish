@@ -25,6 +25,9 @@ setup(
     packages=find_packages(),
     install_requires=[],
     test_suite='test',
+    entry_points = {
+        'console_scripts': ['csvpretty=shellish.tools.csvpretty:csvpretty']
+    },
     classifiers=[
         'Development Status :: 3 - Alpha',
         #'Development Status :: 4 - Beta',

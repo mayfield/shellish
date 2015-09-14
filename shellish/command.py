@@ -7,6 +7,7 @@ import argparse
 import collections
 import functools
 import inspect
+import io
 import itertools
 import shlex
 import time
@@ -386,7 +387,11 @@ class AutoCommand(Command):
                               param.KEYWORD_ONLY):
                 if param.kind == param.KEYWORD_ONLY or \
                    param.default is not sig.empty:
-                    help = "(default: %s)" % param.default
+                    if isinstance(param.default, io.IOBase):
+                        defvalue = param.default.name
+                    else:
+                        defvalue = str(param.default)
+                    help = "(default: %s)" % defvalue
                     name = '--%s' % name
                     label = 'keyword'
                     got_keywords = True
@@ -415,7 +420,10 @@ class AutoCommand(Command):
             if help:
                 options['help'] = help
             if options.get('type'):
-                options['metavar'] = options['type'].__name__.upper()
+                try:
+                    options['metavar'] = options['type'].__name__.upper()
+                except:
+                    pass
             action = parser.add_argument(name, **options)
             action.label = label
 
