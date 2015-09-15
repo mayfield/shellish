@@ -14,6 +14,7 @@ Status
 
 [![Change Log](https://img.shields.io/badge/change-log-blue.svg)](https://github.com/mayfield/shellish/blob/master/CHANGELOG.md)
 [![Build Status](https://semaphoreci.com/api/v1/projects/d925ee35-bede-4cc1-bbb8-17a738b84cfa/533600/shields_badge.svg)](https://semaphoreci.com/mayfield/shellish)
+[![Documentation Status](https://readthedocs.org/projects/shellish/badge/?version=latest)](https://readthedocs.org/projects/shellish/?badge=latest)
 
 
 Requirements
