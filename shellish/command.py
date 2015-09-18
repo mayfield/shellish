@@ -44,6 +44,7 @@ class Command(object):
         self.doc = doc or self.__doc__
         if name:
             self.name = name
+        self.shell = None
         self.subcommands = []
         self.default_subcommand = None
         self.context_keys = set()
