@@ -9,8 +9,9 @@ shellish
 [![Build Status](https://semaphoreci.com/api/v1/projects/d925ee35-bede-4cc1-bbb8-17a738b84cfa/533600/shields_badge.svg)](https://semaphoreci.com/mayfield/shellish)
 [![PyPI Downloads](https://img.shields.io/pypi/dm/shellish.svg)](https://pypi.python.org/pypi/shellish)
 
---------
 
+About
+--------
 
 This module combines the Python standard library modules argparse and cmd
 to provide a unified way to make cli programs that can also be interactive
@@ -64,5 +65,4 @@ Examples
 * [Alternate Styles](examples/skin_a_cat.py)
 * [Tab Completion](examples/tabcompletion.py)
 
---------
 [All Examples](examples/)
