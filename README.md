@@ -1,6 +1,6 @@
 shellish
 ===========
-**_Command-line/shell mashup framework_**
+_*Command-line/shell mashup framework*_
 
 [![Maturity](https://img.shields.io/pypi/status/shellish.svg)](https://pypi.python.org/pypi/shellish)
 [![License](https://img.shields.io/pypi/l/shellish.svg)](https://pypi.python.org/pypi/shellish)
