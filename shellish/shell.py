@@ -6,6 +6,7 @@ import ast
 import cmd
 import configparser
 import os.path
+import pdb
 import readline
 import shlex
 import sys
@@ -29,7 +30,7 @@ class Shell(cmd.Cmd):
     intro = 'Type "help" or "?" to list commands and "exit" to quit.'
     completer_delim_includes = frozenset()
     completer_delim_excludes = frozenset('-+@:')
-    exception_verbosity = 'traceback' # {'raise', 'traceback', 'pretty'}
+    exception_verbosity = 'traceback'
 
     def __init__(self, root_command):
         self.root_command = root_command
@@ -132,6 +133,9 @@ class Shell(cmd.Cmd):
         if self.exception_verbosity == 'traceback':
             self.pretty_print_exc(exc)
             print(*traceback.format_exception(*sys.exc_info()))
+            return
+        elif self.exception_verbosity == 'debugger':
+            pdb.set_trace()
             return
         elif self.exception_verbosity == 'raise':
             raise exc from None
