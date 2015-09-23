@@ -87,22 +87,23 @@ class TableRendering(unittest.TestCase):
             self.assertEqual(res, fits + cliptext)
 
     def test_flex_smoosh(self):
-        t = self.render_table([None, None, None], width=40)
+        t = self.render_table([None, None, None], width=12)
         text_a = ['1', '22', '333']
         text_b = ['333', '4444', '55555']
         t.print([text_a, text_b])
         first, second = self.get_lines()
         self.assertEqual(len(first.split()), 3)
+        self.assertEqual(second, ''.join(text_b))
         self.assertEqual(len(second.split()), 1)
-        t = self.render_table(column_padding=1, width=40)
+        t = self.render_table(column_padding=1, width=15)
         t.print([text_a, text_b])
         first, second = self.get_lines()
         self.assertEqual(second, '333 4444 55555 ')
-        t = self.render_table(column_padding=2, width=40)
+        t = self.render_table(column_padding=2, width=18)
         t.print([text_a, text_b])
         first, second = self.get_lines()
         self.assertEqual(second, ' 333  4444  55555 ')
-        t = self.render_table(column_padding=3, width=40)
+        t = self.render_table(column_padding=3, width=21)
         t.print([text_a, text_b])
         first, second = self.get_lines()
         self.assertEqual(second, ' 333   4444   55555  ')

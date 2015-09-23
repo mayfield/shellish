@@ -330,6 +330,15 @@ class TableRenderer(object):
             })
         if self.clip:
             self.adjust_clipping(max_width, colstats)
+        required = sum(x['offt'] for x in colstats)
+        if required < max_width:
+            # Fill remaining space proportionately.
+            remaining = max_width
+            for x in colstats[:-1]:
+                x['offt'] = math.floor((x['offt'] / required) * max_width)
+                remaining -= x['offt']
+            if colstats:
+                colstats[-1]['offt'] = remaining
         return [(x['column'], x['offt']) for x in colstats]
 
     def adjust_clipping(self, max_width, colstats):
