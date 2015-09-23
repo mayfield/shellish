@@ -9,12 +9,14 @@ import functools
 import inspect
 import io
 import itertools
+import os
+import os.path
 import shlex
 import time
 import traceback
 from . import completer, shell, layout
 
-__public__ = ['Command', 'autocommand']
+__public__ = ['Command', 'autocommand', 'SystemCompletionSetup']
 
 
 class Command(object):
@@ -41,7 +43,7 @@ class Command(object):
         raise SystemExit(1)
 
     def __init__(self, parent=None, doc=None, name=None, **context):
-        self.doc = doc or self.__doc__
+        self.doc = doc or inspect.getdoc(self)
         if name:
             self.name = name
         self.shell = None
@@ -336,6 +338,125 @@ class Command(object):
         self.subcommands.append(command)
 
 
+class SystemCompletionSetup(Command):
+    """ Generate a bash compatible completion script.
+
+    Typically this command is run once and concatenated to your .<shell>rc
+    file so completion targets for your shellish command can work from your
+    system shell.  The idea is lifted directly from npm-completion. """
+
+    name = 'completion'
+
+    script_header = '''
+        ###-begin-%(prog)s-%(name)s-###
+        # %(prog)s command %(name)s script
+        # Usage: %(prog)s %(name)s >> ~/.%(shell)src
+    '''
+
+    script_body = {
+        'bash': '''
+            _%(prog)s_%(name)s() {
+                local words cword
+                if type _get_comp_words_by_ref &>/dev/null; then
+                    _get_comp_words_by_ref -n = -n @ -w words -i cword
+                else
+                    cword="$COMP_CWORD"
+                    words=("${COMP_WORDS[@]}")
+                fi
+                local si="$IFS"
+                IFS=$'\\n' COMPREPLY=($(COMP_CWORD="$cword" \\
+                                     COMP_LINE="$COMP_LINE" \\
+                                     COMP_POINT="$COMP_POINT" \\
+                                     %(prog)s %(name)s --seed "${words[@]}" \\
+                                     )) || return $?
+                IFS="$si"
+            }
+            complete -o default -F _%(prog)s_%(name)s %(prog)s
+        ''',
+        'zsh': '''
+            _%(prog)s_%(name)s() {
+                local si=$IFS
+                compadd -- $(COMP_CWORD=$((CURRENT-1)) \\
+                             COMP_LINE=$BUFFER \\
+                             COMP_POINT=0 \\
+                             %(prog)s %(name)s --seed "${words[@]}" \\
+                             2>/dev/null)
+                IFS=$si
+            }
+            compdef _%(prog)s_%(name)s %(name)s
+        '''
+    }
+
+    script_footer = '''###-end-%(prog)s-$(name)s-###'''
+
+    def log(self, *args):
+        with open("ecm-complete.log", 'a') as f:
+            f.write(' '.join(map(repr, args)) + '\n')
+
+    def setup_args(self, parser):
+        self.add_argument('--seed', nargs=argparse.REMAINDER)
+
+    def run(self, args):
+        if not args.seed:
+            return self.show_setup()
+        prog = args.seed.pop(0)
+        shift = len(prog) + 1
+        index = int(os.getenv('COMP_CWORD')) - 1
+        line = os.getenv('COMP_LINE')[shift:]
+        beginold = int(os.getenv('COMP_POINT')) - shift
+        begin = len(' '.join(args.seed[:index]))
+        end = len(line)
+
+        self.log('index', index)
+        self.log('line', line)
+        self.log('begin', begin)
+        self.log('beginold', beginold)
+        self.log('end', end)
+        self.log('seed', args.seed)
+
+        shell = self.Shell(self.parent)
+        if begin > 0:
+            cmd = shell.parseline(line)[0]
+            self.log('CMMMM', cmd)
+            if cmd == '':
+                compfunc = shell.completedefault
+            else:
+                try:
+                    compfunc = getattr(shell, 'complete_' + cmd)
+                except AttributeError:
+                    compfunc = shell.completedefault
+        else:
+            compfunc = shell.completenames
+        self.log(compfunc)
+        for x in compfunc(args.seed[index], line, begin, end):
+            self.log("choice", x.rstrip())
+            print(x.rstrip())
+
+    def show_setup(self):
+        """ Provide a helper script for the user to setup completion. """
+        shell = os.getenv('SHELL')
+        if not shell:
+            raise SystemError("No $SHELL env var found")
+        shell = os.path.basename(shell)
+        if shell not in self.script_body:
+            raise SystemError("Unsupported shell: %s" % shell)
+        tplvars = {
+            "prog": '-'.join(self.prog.split()[:-1]),
+            "shell": shell,
+            "name": self.name
+        }
+        print(self.trim(self.script_header % tplvars))
+        print(self.trim(self.script_body[shell] % tplvars))
+        print(self.trim(self.script_footer % tplvars))
+
+    def trim(self, text):
+        """ Trim whitespace indentation from text. """
+        lines = text.splitlines()
+        firstline = lines[0] or lines[1]
+        indent = len(firstline) - len(firstline.lstrip())
+        return '\n'.join(x[indent:] for x in lines if x.strip())
+
+
 class AutoCommand(Command):
     """ Auto command ABC.  This command wraps a generic function and tries
     to map the function signature to a parser configuration.  Use the
@@ -433,5 +554,5 @@ def autocommand(func):
     """ A simplified decorator for making a single function a Command
     instance.  In the future this will leverage PEP0484 to do really smart
     function parsing and conversion to argparse actions. """
-    doc = func.__doc__ or 'Auto command for: %s' % func.__name__
+    doc = inspect.getdoc(func) or 'Auto command for: %s' % func.__name__
     return AutoCommand(doc=doc, name=func.__name__, func=func)
