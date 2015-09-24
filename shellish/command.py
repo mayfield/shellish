@@ -339,7 +339,7 @@ class Command(object):
 
 
 class SystemCompletionSetup(Command):
-    """ Generate a bash compatible completion script.
+    """ Generate a bash/zsh compatible completion script.
 
     Typically this command is run once and concatenated to your .<shell>rc
     file so completion targets for your shellish command can work from your
@@ -349,8 +349,11 @@ class SystemCompletionSetup(Command):
 
     script_header = '''
         ###-begin-%(prog)s-%(name)s-###
+        #
         # %(prog)s command %(name)s script
-        # Usage: %(prog)s %(name)s >> ~/.%(shell)src
+        #
+        # Installation: %(prog)s %(name)s >> ~/.%(shell)src
+        #
     '''
 
     script_body = {
@@ -366,9 +369,8 @@ class SystemCompletionSetup(Command):
                 local si="$IFS"
                 IFS=$'\\n' COMPREPLY=($(COMP_CWORD="$cword" \\
                                      COMP_LINE="$COMP_LINE" \\
-                                     COMP_POINT="$COMP_POINT" \\
                                      %(prog)s %(name)s --seed "${words[@]}" \\
-                                     )) || return $?
+                                     2>/dev/null)) || return $?
                 IFS="$si"
             }
             complete -o default -F _%(prog)s_%(name)s %(prog)s
@@ -378,7 +380,6 @@ class SystemCompletionSetup(Command):
                 local si=$IFS
                 compadd -- $(COMP_CWORD=$((CURRENT-1)) \\
                              COMP_LINE=$BUFFER \\
-                             COMP_POINT=0 \\
                              %(prog)s %(name)s --seed "${words[@]}" \\
                              2>/dev/null)
                 IFS=$si
@@ -389,47 +390,27 @@ class SystemCompletionSetup(Command):
 
     script_footer = '''###-end-%(prog)s-$(name)s-###'''
 
-    def log(self, *args):
-        with open("ecm-complete.log", 'a') as f:
-            f.write(' '.join(map(repr, args)) + '\n')
-
     def setup_args(self, parser):
         self.add_argument('--seed', nargs=argparse.REMAINDER)
 
     def run(self, args):
         if not args.seed:
             return self.show_setup()
-        prog = args.seed.pop(0)
-        shift = len(prog) + 1
+        seed = args.seed
+        prog = seed.pop(0)
         index = int(os.getenv('COMP_CWORD')) - 1
-        line = os.getenv('COMP_LINE')[shift:]
-        beginold = int(os.getenv('COMP_POINT')) - shift
-        begin = len(' '.join(args.seed[:index]))
+        line = os.getenv('COMP_LINE')[len(prog) + 1:]
+        begin = len(' '.join(seed[:index]))
         end = len(line)
-
-        self.log('index', index)
-        self.log('line', line)
-        self.log('begin', begin)
-        self.log('beginold', beginold)
-        self.log('end', end)
-        self.log('seed', args.seed)
-
         shell = self.Shell(self.parent)
         if begin > 0:
-            cmd = shell.parseline(line)[0]
-            self.log('CMMMM', cmd)
-            if cmd == '':
+            try:
+                compfunc = getattr(shell, 'complete_' + seed[0])
+            except AttributeError:
                 compfunc = shell.completedefault
-            else:
-                try:
-                    compfunc = getattr(shell, 'complete_' + cmd)
-                except AttributeError:
-                    compfunc = shell.completedefault
         else:
             compfunc = shell.completenames
-        self.log(compfunc)
-        for x in compfunc(args.seed[index], line, begin, end):
-            self.log("choice", x.rstrip())
+        for x in compfunc(seed[index], line, begin, end):
             print(x.rstrip())
 
     def show_setup(self):
