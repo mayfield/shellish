@@ -2,6 +2,13 @@
 
 ## [Unreleased] - unreleased
 
+
+## [0.6.0] - 2015-09-23
+### Added
+- System wide tab completion support via npm style 'completion' bootstrap
+  command.
+
+
 ## [0.5.1] - 2015-09-18
 ### Changed
 - Nothing, just SCM/deploy testing.
@@ -53,7 +60,8 @@
 - First stable release
 
 
-[unreleased]: https://github.com/mayfield/shellish/compare/v0.5.1...HEAD
+[unreleased]: https://github.com/mayfield/shellish/compare/v0.6.0...HEAD
+[0.6.0]: https://github.com/mayfield/shellish/compare/v0.5.1...v0.6.0
 [0.5.1]: https://github.com/mayfield/shellish/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/mayfield/shellish/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/mayfield/shellish/compare/v0.3.0...v0.4.0
