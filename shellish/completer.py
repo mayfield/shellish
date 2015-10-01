@@ -41,6 +41,8 @@ class ActionCompleter(object):
         return '<%s key:%s action:(%s)>' % (type(self).__name__, self.key,
                self.about_action())
 
+    __repr__ = __str__
+
     def __call__(self, command, prefix):
         if self.last_complete is not command.last_invoke:
             self.cache.clear()

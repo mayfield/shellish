@@ -11,7 +11,7 @@ import operator
 import shutil
 import sys
 
-__public__ = ['columnize', 'tabulate', 'vtmlprint', 'dicttree']
+__public__ = ['columnize', 'tabulate', 'vtmlprint', 'vtmlrender', 'dicttree']
 
 
 class VTMLParser(html.parser.HTMLParser):
@@ -21,7 +21,7 @@ class VTMLParser(html.parser.HTMLParser):
         'normal': '\033[0m',
         'b': '\033[1m',
         'dim': '\033[2m',
-        'ul': '\033[4m',
+        'u': '\033[4m',
         'blink': '\033[5m',
         'reverse': '\033[7m'
     }

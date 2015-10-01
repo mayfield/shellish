@@ -34,7 +34,11 @@ class Command(object):
         pass
 
     def prerun(self, args):
-        """ Hook to do thing prior to any invocation. """
+        """ Hook to do something prior to invocation. """
+        pass
+
+    def postrun(self, args, result, exception=None):
+        """ Hook to do something following invocation. """
         pass
 
     def run(self, args):
@@ -74,10 +78,16 @@ class Command(object):
                     parser.parse_args([], namespace=args)
                     return self(args)  # retry
             else:
-                self.prerun(args)
                 return command(args)
         self.prerun(args)
-        return self.run(args)
+        try:
+            result = self.run(args)
+        except BaseException as e:
+            self.postrun(args, None, e)
+            raise e
+        else:
+            self.postrun(args, result)
+            return result
 
     @property
     def parent(self):
@@ -185,14 +195,14 @@ class Command(object):
         choices = self.complete(text, line, begin, end)
         sz = len(choices)
         if sz == 1:
-            return ['%s ' % shlex.quote(choices.pop())]
+            # XXX: This is pretty bad logic here.  In reality we need much
+            # more complicated escape handling and imbalanced quote support.
+            return [shlex.quote(x) for x in choices]
         elif sz > 2:
             # We don't need the sentinel choice to prevent completion
             # when there is already more than 1 choice.
             choices -= {completer.ActionCompleter.sentinel}
-        # Python's readline module is hardcoded to not insert spaces so we
-        # have to add a space to each response to get more bash-like behavior.
-        return ['%s ' % x for x in choices]
+        return list(choices)
 
     def columnize(self, *args, **kwargs):
         return layout.columnize(*args, **kwargs)
@@ -236,7 +246,8 @@ class Command(object):
             return {text}
 
         # Look for incomplete actions.
-        choices = set(options) - {None}
+        choices = set(x for x in options
+                      if x is not None and x.startswith(text))
         arg_buf = []
         pos_args = []
         trailing_action = None
@@ -247,6 +258,8 @@ class Command(object):
                 action.consume(arg_buf)
                 pos_args.extend(arg_buf)
                 del arg_buf[:]
+                if action.full:
+                    choices -= {action.key}
                 if not trailing_action:
                     trailing_action = action
                     if not action.full:
@@ -271,7 +284,7 @@ class Command(object):
                 elif not x_action.full:
                     choices |= x_action(self, text)
 
-        return set(x for x in choices if x.startswith(text))
+        return choices
 
     def split_line(self, line):
         """ Try to do pure shlex.split unless it can't parse the line. In that
@@ -403,6 +416,7 @@ class SystemCompletionSetup(Command):
         begin = len(' '.join(seed[:index]))
         end = len(line)
         shell = self.Shell(self.parent)
+        shell.pad_completion = False
         if begin > 0:
             try:
                 compfunc = getattr(shell, 'complete_' + seed[0])
@@ -411,7 +425,7 @@ class SystemCompletionSetup(Command):
         else:
             compfunc = shell.completenames
         for x in compfunc(seed[index], line, begin, end):
-            print(x.rstrip())
+            print(x)
 
     def show_setup(self):
         """ Provide a helper script for the user to setup completion. """
@@ -470,8 +484,6 @@ class AutoCommand(Command):
                         value = next(kwpairs)
                         key = key.strip('-')
                     keywords[key] = value
-            else:
-                raise RuntimeError("XXX: Impossible?")
         return self.func(*positionals, **keywords)
 
     def setup_args(self, default_parser):

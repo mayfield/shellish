@@ -3,6 +3,25 @@
 ## [Unreleased] - unreleased
 
 
+## [0.7.0] - 2015-10-01
+### Added
+- Support for disabling tab completion padding (adding a space after single
+  matches).
+- Tests for tab completion.
+- Added Command.postrun() to match existing prerun() hook (with caveat noted
+  below). 
+
+### Changed
+- Only run Command.prerun on the instance being 'run()'.
+- Change VTML 'UL' tag to just 'U' to match html spec and avoid confusion
+
+### Fixed
+- Tab completion does not double-add optional argument keys when they have
+  been satisfied already.  This partially worked before with an off-by-1-ish
+  error.
+- Cleanup for padding code to not strip argument values which are delimited.
+
+
 ## [0.6.0] - 2015-09-23
 ### Added
 - System wide tab completion support via npm style 'completion' bootstrap
@@ -60,7 +79,8 @@
 - First stable release
 
 
-[unreleased]: https://github.com/mayfield/shellish/compare/v0.6.0...HEAD
+[unreleased]: https://github.com/mayfield/shellish/compare/v0.7.0...HEAD
+[0.7.0]: https://github.com/mayfield/shellish/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/mayfield/shellish/compare/v0.5.1...v0.6.0
 [0.5.1]: https://github.com/mayfield/shellish/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/mayfield/shellish/compare/v0.4.0...v0.5.0

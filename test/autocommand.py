@@ -2,8 +2,6 @@
 Tests for the decorator that converts a function to a command.
 """
 
-import json
-import shlex
 from shellish import autocommand
 import unittest
 
@@ -13,7 +11,7 @@ class PositionalTests(unittest.TestCase):
     def test_one_pos(self):
         @autocommand
         def f(one):
-            self.assertEquals(one, 'ONE')
+            self.assertEqual(one, 'ONE')
         f(argv='ONE')
         with self.assertRaises(SystemExit):
             f(argv='')
@@ -21,17 +19,17 @@ class PositionalTests(unittest.TestCase):
     def test_2_and_3_pos(self):
         @autocommand
         def f2(one, two):
-            self.assertEquals(one, 'ONE')
-            self.assertEquals(two, 'TWO')
+            self.assertEqual(one, 'ONE')
+            self.assertEqual(two, 'TWO')
         f2(argv='ONE TWO')
         with self.assertRaises(SystemExit):
             f2(argv='ONE')
 
         @autocommand
         def f3(one, two, three):
-            self.assertEquals(one, 'ONE')
-            self.assertEquals(two, 'TWO')
-            self.assertEquals(three, 'THREE')
+            self.assertEqual(one, 'ONE')
+            self.assertEqual(two, 'TWO')
+            self.assertEqual(three, 'THREE')
         f3(argv='ONE TWO THREE')
         with self.assertRaises(SystemExit):
             f3(argv='ONE TWO')
@@ -123,7 +121,7 @@ class KeywordTests(unittest.TestCase):
 class CombinationTests(unittest.TestCase):
 
     def test_arg_kwarg_varargs(self):
-        with self.assertRaisesRegexp(ValueError, 'Unsupported'):
+        with self.assertRaisesRegex(ValueError, 'Unsupported'):
             @autocommand
             def f(one, first=None, *args):
                 pass
@@ -203,7 +201,7 @@ class TypeTests(unittest.TestCase):
             self.assertIsInstance(one, int)
             return one
         for x in [0, 1, 2**1024, -1, -2]:
-            self.assertEquals(f(argv=str(x)), x)
+            self.assertEqual(f(argv=str(x)), x)
         for x in ['nope', '0x0', '0o0']:
             with self.assertRaises(SystemExit):
                 f(argv=x)
@@ -214,7 +212,7 @@ class TypeTests(unittest.TestCase):
             self.assertIsInstance(one, float)
             return one
         for x in [0, 1, 1.1]:
-            self.assertEquals(f(argv=str(x)), x)
+            self.assertEqual(f(argv=str(x)), x)
         for x in ['nope']:
             with self.assertRaises(SystemExit):
                 f(argv=x)
@@ -232,5 +230,5 @@ class Nesting(unittest.TestCase):
             return 'sub'
 
         main.add_subcommand(sub)
-        self.assertEquals(main(argv=''), 'main')
-        self.assertEquals(main(argv='sub'), 'sub')
+        self.assertEqual(main(argv=''), 'main')
+        self.assertEqual(main(argv='sub'), 'sub')

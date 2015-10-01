@@ -31,13 +31,13 @@ class Shell(cmd.Cmd):
     completer_delim_includes = frozenset()
     completer_delim_excludes = frozenset('-+@:')
     exception_verbosity = 'traceback'
+    pad_completion = True
 
     def __init__(self, root_command):
         self.root_command = root_command
         self.name = root_command.name
         root_command.prog = ''
         self.config = self.load_config()
-        self.history_file = self.load_history()
         self.setup_readline()
         raw_prompt = self.config['ui']['prompt_format']
         self.prompt_format = ast.literal_eval("'%s '" % raw_prompt)
@@ -103,13 +103,23 @@ class Shell(cmd.Cmd):
             names.extend('%s_%s' % (op, x.name) for x in commands)
         return names
 
-    def complete_help(self, *args, **kwargs):
-        topics = super().complete_help(*args, **kwargs)
-        return ['%s ' % x.rstrip() for x in topics]
+    def complete(self, text, state):
+        """Return the next possible completion for 'text'.
 
-    def completenames(self, *args, **kwargs):
-        names = super().completenames(*args, **kwargs)
-        return ['%s ' % x.rstrip() for x in names]
+        If a command has not been entered, then complete against command list.
+        Otherwise try to call complete_<command> to get list of completions.
+        """
+        if state == 0:
+            super().complete(text, state)
+            if self.pad_completion:
+                pad = lambda x: x + ' ' if not x.endswith(' ') or \
+                                           x.endswith(r'\ ') else x
+                m = self.completion_matches
+                m[:] = [pad(x) for x in m]
+        try:
+            return self.completion_matches[state]
+        except IndexError:
+            return None
 
     def emptyline(self):
         """ Do not re-run the last command. """
@@ -150,6 +160,7 @@ class Shell(cmd.Cmd):
         self.vtmlprint("<b>Command Error:</b>", exc)
 
     def cmdloop(self):
+        history_file = self.load_history()
         intro = ()
         while True:
             try:
@@ -164,7 +175,7 @@ class Shell(cmd.Cmd):
             except Exception as e:
                 self.handle_cmd_exc(e)
             finally:
-                readline.write_history_file(self.history_file)
+                readline.write_history_file(history_file)
             if not intro:
                 intro = ('',)
 
