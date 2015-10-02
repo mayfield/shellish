@@ -2,6 +2,11 @@
 
 ## [Unreleased] - unreleased
 
+## [0.8.0] - 2015-10-02
+### Changed
+- Command now takes `title` and `desc` instead of `doc` argument.
+- A Command subclass is not required to provide a docstring.
+
 
 ## [0.7.0] - 2015-10-01
 ### Added
@@ -79,7 +84,8 @@
 - First stable release
 
 
-[unreleased]: https://github.com/mayfield/shellish/compare/v0.7.0...HEAD
+[unreleased]: https://github.com/mayfield/shellish/compare/v0.8.0...HEAD
+[0.8.0]: https://github.com/mayfield/shellish/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/mayfield/shellish/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/mayfield/shellish/compare/v0.5.1...v0.6.0
 [0.5.1]: https://github.com/mayfield/shellish/compare/v0.5.0...v0.5.1

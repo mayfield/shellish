@@ -19,12 +19,31 @@ from . import completer, shell, layout
 __public__ = ['Command', 'autocommand', 'SystemCompletionSetup']
 
 
+def parse_docstring(entity):
+    """ Return sanitized docstring from an entity.  The first line of the
+    docstring is the title, and remaining lines are the details, aka git
+    style. """
+    doc = inspect.getdoc(entity)
+    if not doc:
+        return None, None
+    doc = [x.strip() for x in doc.splitlines()]
+    if not doc[0]:
+        doc.pop(0)
+    title = (doc and doc.pop(0)) or None
+    if doc and not doc[0]:
+        doc.pop(0)
+    desc = '\n'.join(doc) or None
+    return title, desc
+
+
 class Command(object):
     """ The primary encapsulation for a shellish command.  Each command or
     subcommand should be an instance of this class.  The docstring for sub-
-    classes is used in --help output for this command and is required. """
+    classes is used in --help output for this command. """
 
     name = None
+    title = None
+    desc = None
     ArgumentParser = argparse.ArgumentParser
     ArgumentFormatter = argparse.RawDescriptionHelpFormatter
     Shell = shell.Shell
@@ -46,10 +65,17 @@ class Command(object):
         self.argparser.print_usage()
         raise SystemExit(1)
 
-    def __init__(self, parent=None, doc=None, name=None, **context):
-        self.doc = doc or inspect.getdoc(self)
+    def __init__(self, parent=None, title=None, desc=None, name=None, **context):
         if name:
             self.name = name
+        if type(self) is not Command:
+            alt_title, alt_desc = parse_docstring(self)
+        else:
+            alt_title, alt_desc = None, None
+        if not self.title or title:
+            self.title = title or alt_title
+        if not self.desc or desc:
+            self.desc = desc or alt_desc
         self.shell = None
         self.subcommands = []
         self.default_subcommand = None
@@ -160,25 +186,15 @@ class Command(object):
     def create_argparser(self):
         """ Factory for arg parser.  Can be overridden as long as it returns
         an ArgParser compatible instance. """
-        desc = self.clean_docstring()[1]
-        return self.ArgumentParser(self.name, description=desc,
-                                   formatter_class=self.ArgumentFormatter)
-
-    def clean_docstring(self):
-        """ Return sanitized docstring from this class.
-        The first line of the docstring is the title, and remaining lines are
-        the details, aka git style. """
-        if not self.doc:
-            raise SyntaxError('Docstring missing for: %s' % self)
-        doc = [x.strip() for x in self.doc.splitlines()]
-        if not doc[0]:
-            doc.pop(0)  # Some people leave the first line blank.
-        title = doc.pop(0)
-        if doc:
-            desc = '%s\n\n%s' % (title, '\n'.join(doc))
+        if self.desc:
+            if self.title:
+                fulldesc = '%s\n\n%s' % (self.title, self.desc)
+            else:
+                fulldesc = self.desc
         else:
-            desc = title
-        return title, desc
+            fulldesc = self.title
+        return self.ArgumentParser(self.name, description=fulldesc,
+                                   formatter_class=self.ArgumentFormatter)
 
     def complete_wrap(self, *args, **kwargs):
         """ Readline eats exceptions raised by completer functions. """
@@ -340,9 +356,8 @@ class Command(object):
             if self.default_subcommand:
                 raise ValueError("Default subcommand already exists.")
             self.default_subcommand = command
-        title, desc = command.clean_docstring()
         help_fmt = '%s (default)' if default else '%s'
-        help = help_fmt % title
+        help = help_fmt % command.title
         command.prog = '%s %s' % (self.prog, command.name)
         command.argparser._defaults['command%d' % self.depth] = command
         action = self.subparsers._ChoicesPseudoAction(command.name, (), help)
@@ -547,5 +562,8 @@ def autocommand(func):
     """ A simplified decorator for making a single function a Command
     instance.  In the future this will leverage PEP0484 to do really smart
     function parsing and conversion to argparse actions. """
-    doc = inspect.getdoc(func) or 'Auto command for: %s' % func.__name__
-    return AutoCommand(doc=doc, name=func.__name__, func=func)
+    name = func.__name__
+    title, desc = parse_docstring(func)
+    if not title:
+        title = 'Auto command for: %s' % name
+    return AutoCommand(title=title, desc=desc, name=name, func=func)

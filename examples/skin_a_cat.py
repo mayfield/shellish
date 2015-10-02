@@ -21,10 +21,10 @@ cat1.add_subcommand(sub1)
 ###############
 # Composition #
 ###############
-cat2 = shellish.Command(name='cat2', doc='composition cat')
+cat2 = shellish.Command(name='cat2', title='composition cat')
 cat2.run = lambda args: cat2.interact()
 
-sub2 = shellish.Command(name='sub2', doc='composition cat sub')
+sub2 = shellish.Command(name='sub2', title='composition cat sub')
 sub2.add_argument('--optional', type=int, default=2)
 sub2.run = lambda args: print("ran subcommand2", args.optional)
 cat2.add_subcommand(sub2)
@@ -59,7 +59,7 @@ class Sub3(shellish.Command):
 
 
 # Putting it together for a demo..
-main = shellish.Command(name='main', doc='harness')
+main = shellish.Command(name='main', title='harness')
 main.add_subcommand(cat1)
 main.add_subcommand(cat2)
 main.add_subcommand(Cat3)
