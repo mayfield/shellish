@@ -249,7 +249,7 @@ class TableRenderer(object):
             print(*self.format_row(row), sep='', file=self.file)
 
     def print_header(self):
-        headers = [VTML(x) for x in self.headers]
+        headers = [VTML(x or '') for x in self.headers]
         header_row = ''.join(map(str, self.format_row(headers)))
         vtmlprint(self.header_format % header_row, file=self.file)
         self.headers_drawn = True
