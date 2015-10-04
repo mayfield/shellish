@@ -402,14 +402,14 @@ class SystemCompletionSetup(Command):
                                      2>/dev/null)) || return $?
                 IFS="$si"
             }
-            complete -o default -F _%(prog)s_%(name)s %(prog)s
+            complete -o nospace -F _%(prog)s_%(name)s %(prog)s
         ''',
         'zsh': '''
             _%(prog)s_%(name)s() {
                 local si=$IFS
                 compadd -- $(COMP_CWORD=$((CURRENT-1)) \\
                              COMP_LINE=$BUFFER \\
-                             %(prog)s %(name)s --seed "${words[@]}" \\
+                             %(prog)s %(name)s -S '' --seed "${words[@]}" \\
                              2>/dev/null)
                 IFS=$si
             }
@@ -432,7 +432,6 @@ class SystemCompletionSetup(Command):
         begin = len(' '.join(seed[:index]))
         end = len(line)
         shell = self.Shell(self.parent)
-        shell.pad_completion = False
         if begin > 0:
             try:
                 compfunc = getattr(shell, 'complete_' + seed[0])
