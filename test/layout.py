@@ -1,58 +1,65 @@
 
 import io
+import statistics
 import unittest
-from shellish.layout import Table, vtmlrender, tabulate
+from shellish.layout import Table, TableRenderer, vtmlrender
+
+
+def calc_table(*columns, width=100, data=None, flex=False):
+    t = Table(columns=columns, width=width, flex=flex, column_padding=0)
+    return t.render(data or []).widths
+
 
 class TabularUnflex(unittest.TestCase):
 
-    def calc_table(self, *columns, width=100):
-        t = Table(columns=columns, width=width, flex=False, column_padding=0)
-        return t.render([]).widths
-
     def test_only_pct(self):
-        widths = self.calc_table(.10, .40, .50)
+        widths = calc_table(.10, .40, .50)
         self.assertEqual(widths, [10, 40, 50])
 
     def test_only_fixed(self):
-        widths = self.calc_table(10, 40, 50)
+        widths = calc_table(10, 40, 50)
         self.assertEqual(widths, [10, 40, 50])
 
     def test_fixed_and_pct(self):
-        widths = self.calc_table(.10, 40, .50)
+        widths = calc_table(.10, 40, .50)
         self.assertEqual(widths, [10, 40, 50])
 
     def test_uneven_pct(self):
-        widths = self.calc_table(1/3, 1/3, 1/3)
+        widths = calc_table(1/3, 1/3, 1/3)
         self.assertEqual(widths, [33, 33, 33])
 
     def test_only_unspec_even(self):
-        widths = self.calc_table(None, None, None, None)
+        widths = calc_table(None, None, None, None)
         self.assertEqual(widths, [25, 25, 25, 25])
 
     def test_only_unspec_odd(self):
-        widths = self.calc_table(None, None, None)
+        widths = calc_table(None, None, None)
+        self.assertEqual(widths, [33, 34, 33])
+
+    def test_carry_over(self):
+        widths = calc_table(1/3, 1/3, 1/3)
         self.assertEqual(widths, [33, 33, 33])
 
     def test_only_unspec_one(self):
-        widths = self.calc_table(None)
+        widths = calc_table(None)
         self.assertEqual(widths, [100])
 
     def test_only_unspec_two(self):
-        widths = self.calc_table(None, None)
+        widths = calc_table(None, None)
         self.assertEqual(widths, [50, 50])
 
     def test_mixed(self):
-        widths = self.calc_table(25, .25, None, None)
+        widths = calc_table(25, .25, None, None)
         self.assertEqual(widths, [25, 25, 25, 25])
 
     def test_mixed_odd(self):
-        widths = self.calc_table(19, 2/3, None, None, None, None, width=147)
-        self.assertEqual(widths, [19, 98, 7, 7, 7, 7])
+        widths = calc_table(19, 2/3, None, None, None, None, width=147)
+        self.assertEqual(widths, [19, 98, 7, 8, 7, 8])
 
 
 class TableRendering(unittest.TestCase):
 
-    def render_table(self, *args, column_padding=0, **kwargs):
+    def table(self, *args, column_padding=0, **kwargs):
         self.output = io.StringIO()
         return Table(*args, file=self.output, column_padding=column_padding,
                      **kwargs)
@@ -61,15 +68,14 @@ class TableRendering(unittest.TestCase):
         return self.output.getvalue().splitlines()
 
     def test_show_mode(self):
-        t = self.render_table([10], width=10, clip=False, flex=False)
+        t = self.table([10], width=10, clip=False, flex=False)
         text = 'A' * 20
         t.print_row([text])
         res = self.get_lines()[0]
         self.assertEqual(res, text)
 
     def test_clip_mode_no_cliptext(self):
-        t = self.render_table([10], width=10, clip=True, cliptext='',
-                              flex=False)
+        t = self.table([10], width=10, clip=True, cliptext='', flex=False)
         fits = 'A' * 10
         clipped = 'B' * 10
         t.print([[fits + clipped]])
@@ -78,8 +84,8 @@ class TableRendering(unittest.TestCase):
 
     def test_clip_mode_with_cliptext(self):
         for cliptext in ('*', '**', '***'):
-            t = self.render_table([10], width=10, clip=True, cliptext=cliptext,
-                                  flex=False)
+            t = self.table([10], width=10, clip=True, cliptext=cliptext,
+                           flex=False)
             fits = 'A' * (10 - len(cliptext))
             clipped = 'B' * 10
             t.print([[fits + clipped]])
@@ -87,7 +93,7 @@ class TableRendering(unittest.TestCase):
             self.assertEqual(res, fits + cliptext)
 
     def test_flex_smoosh(self):
-        t = self.render_table([None, None, None], width=12)
+        t = self.table([None, None, None], width=12)
         text_a = ['1', '22', '333']
         text_b = ['333', '4444', '55555']
         t.print([text_a, text_b])
@@ -95,15 +101,15 @@ class TableRendering(unittest.TestCase):
         self.assertEqual(len(first.split()), 3)
         self.assertEqual(second, ''.join(text_b))
         self.assertEqual(len(second.split()), 1)
-        t = self.render_table(column_padding=1, width=15)
+        t = self.table(column_padding=1, width=15)
         t.print([text_a, text_b])
         first, second = self.get_lines()
         self.assertEqual(second, '333 4444 55555 ')
-        t = self.render_table(column_padding=2, width=18)
+        t = self.table(column_padding=2, width=18)
         t.print([text_a, text_b])
         first, second = self.get_lines()
         self.assertEqual(second, ' 333  4444  55555 ')
-        t = self.render_table(column_padding=3, width=21)
+        t = self.table(column_padding=3, width=21)
         t.print([text_a, text_b])
         first, second = self.get_lines()
         self.assertEqual(second, ' 333   4444   55555  ')
@@ -278,3 +284,45 @@ class TableDataSupport(unittest.TestCase):
     def test_columns_empty_style_spec(self):
         output, t = self.table(columns=[{}, {}, {}])
         t.render()
+
+
+class TableUsagePatterns(unittest.TestCase):
+
+    def table(self, *args, column_padding=0, **kwargs):
+        self.output = io.StringIO()
+        return Table(*args, file=self.output, column_padding=column_padding,
+                     **kwargs)
+
+    def get_lines(self):
+        return self.output.getvalue().splitlines()
+
+    def test_headers_once(self):
+        t = self.table(headers=['foo'], width=3)
+        t.print([['one']])
+        t.print([['two']])
+        self.assertEquals(self.get_lines(), ['foo', '---', 'one', 'two'])
+
+
+class TableCalcs(unittest.TestCase):
+
+    def test_unflex_spec_underflow(self):
+        widths = calc_table(*[1/26] * 26)
+        self.assertLess(statistics.variance(widths), 1)
+        self.assertEqual(sum(widths), 78)  # uses floor() so it's lossy
+
+    def test_unflex_unspec_underflow(self):
+        widths = calc_table(*[None] * 26)
+        self.assertLess(statistics.variance(widths), 1)
+        self.assertEqual(sum(widths), 100)
+
+    def test_equal_flex_underflow_all_fits(self):
+        widths = calc_table(*[None] * 26, flex=True, data=[['a'] * 26])
+        self.assertLess(statistics.variance(widths), 1)
+        self.assertEqual(sum(widths), 100)
+
+    def test_uniform_dist(self):
+        dist = TableRenderer.uniform_dist
+        for i in range(1, 101):
+            for ii in range(151):
+                d = dist(None, i, ii)
+                self.assertEqual(sum(d), ii, (i, ii, d))

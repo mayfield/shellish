@@ -60,6 +60,22 @@ class VTMLParser(html.parser.HTMLParser):
 vtmlparser = VTMLParser()
 
 
+def str_center_padding(value, width, fillchar=' '):
+    """ Consistently center strings so uneven padding always favors trailing
+    pad.  When centering clumps of text this produces better results than
+    str.center which alternates which side uneven padding occurs on.  This
+    function returns a tuple of (leftpad, rightpad). """
+    value_len = len(value)
+    if width <= value_len:
+        return '', ''
+    padlen = width - value_len
+    leftlen = padlen // 2
+    rightlen = padlen - leftlen
+    leftpad = fillchar * leftlen
+    rightpad = fillchar * rightlen
+    return leftpad, rightpad
+
+
 @functools.total_ordering
 class VTML(object):
     """ A str-like object that has an adjusted length to compensate for
@@ -146,14 +162,11 @@ class VTML(object):
         return type(self)(*pad+self.values, length_hint=width)
 
     def center(self, width, fillchar=' '):
-        if width <= self.visual_len:
+        leftpad, rightpad = str_center_padding(self, width, fillchar)
+        if not leftpad and not rightpad:
             return self
-        padlen = width - self.visual_len
-        leftlen = padlen // 2
-        rightlen = padlen - leftlen
-        leftpad = (fillchar * leftlen,)
-        rightpad = (fillchar * rightlen,)
-        return type(self)(*leftpad+self.values+rightpad, length_hint=width)
+        chained = (leftpad,) + self.values + (rightpad,)
+        return type(self)(*chained, length_hint=width)
 
 
 def vtmlrender(vtmarkup):
@@ -195,174 +208,6 @@ def columnize(items, width=None, file=sys.stdout):
         print(*[x.ljust(colsize) for x in row], sep='', file=file)
 
 
-class TableRenderer(object):
-    """ A bundle of state for a particular table rendering job.  Each time a
-    table is to be printed to a file or the screen a new instance of this
-    object will be used to provide closure on the column spec and so forth.
-    This is essentially frozen state computed from a table instance's
-    definition. """
-
-    def __init__(self, colspec=None, accessors=None, table=None,
-                 seed_data=None):
-        """ All calculated values required for rendering a table are kept
-        here.  In theory a single Table instance can be used to render
-        multiple and differing datasets in a concurrent system.  Admittedly
-        this is over-engineered for a CLI suite and the result of a lazy
-        Sunday. """
-        self.colspec = colspec
-        self.accessors = accessors
-        self.capture_table_state(table)
-        self.seed = seed_data and list(self.render_data(seed_data))
-        self.widths = self.calc_widths(self.seed)
-        self.formatters = self.create_formatters()
-        self.headers_drawn = not self.headers
-
-    def capture_table_state(self, table):
-        """ Capture state from the table instance and store locally for safe
-        keeping.  This is not specifically required but helps in keeping with
-        our pseudo "frozen" nature. """
-        for x in ('file', 'clip', 'cliptext', 'flex', 'width',
-                  'header_format'):
-            setattr(self, x, getattr(table, x))
-        self.headers = table.headers and table.headers[:]
-
-    def render_data(self, data):
-        """ Get and format the data from the raw list of objects. """
-        for obj in data:
-            yield [vtmlrender(access(obj)) for access in self.accessors]
-
-    def flush(self):
-        """ Print any values stored in the render queue. """
-        if self.seed:
-            self.print_rendered(self.seed)
-            self.seed = None
-
-    def format_row(self, items):
-        """ Apply overflow, justification and padding to a row. """
-        return [formatter(x) for x, formatter in zip(items, self.formatters)]
-
-    def print_rendered(self, rendered_values):
-        """ Format and print the pre-rendered data. """
-        if not self.headers_drawn:
-            self.print_header()
-        for row in rendered_values:
-            print(*self.format_row(row), sep='', file=self.file)
-
-    def print_header(self):
-        headers = [VTML(x or '') for x in self.headers]
-        header_row = ''.join(map(str, self.format_row(headers)))
-        vtmlprint(self.header_format % header_row, file=self.file)
-        self.headers_drawn = True
-
-    def print(self, data):
-        self.flush()
-        self.print_rendered(self.render_data(data))
-
-    def overflow_show(self, item, width):
-        return item
-
-    def overflow_clip(self, item, width):
-        return item.clip(width, self.cliptext)
-
-    def create_formatters(self):
-        """ Create formatter functions for each column that factor the width
-        and alignment settings.  They can then be stored in the render spec
-        for faster justification processing. """
-        align_funcs = {
-            "left": 'ljust',
-            "right": 'rjust',
-            "center": 'center'
-        }
-        formatters = []
-        overflow = self.overflow_clip if self.clip else self.overflow_show
-        for spec, inner_w in zip(self.colspec, self.widths):
-            align_fnname = align_funcs[spec['align']]
-            outer_w = inner_w + spec['padding']
-            align = operator.methodcaller(align_fnname, inner_w)
-            def fn(x, inner_w=inner_w, outer_w=outer_w, align=align):
-                return align(overflow(x, inner_w)).center(outer_w)
-            formatters.append(fn)
-        return formatters
-
-    def calc_widths(self, sample_data):
-        """ Convert the colspec into absolute col widths. """
-        usable_width = self.width or shutil.get_terminal_size()[0]
-        usable_width -= sum(x['padding'] for x in self.colspec)
-        spec = [x['width'] for x in self.colspec]
-        remaining = usable_width
-        unspec = []
-        for i, x in enumerate(spec):
-            if x is None:
-                unspec.append(i)
-            elif x > 0 and x < 1:
-                spec[i] = w = math.floor(x * usable_width)
-                remaining -= w
-            else:
-                remaining -= x
-        if unspec:
-            if self.flex and sample_data:
-                for i, w in self.calc_flex(sample_data, remaining, unspec):
-                    spec[i] = w
-            else:
-                percol = math.floor(remaining / len(unspec))
-                for i in unspec:
-                    spec[i] = percol
-        return spec
-
-    def calc_flex(self, data, max_width, cols):
-        """ Scan the entire data source returning the best width for each
-        column given the width constraint.  If some columns will clip we
-        calculate the best concession widths. """
-        colstats = []
-        for i in cols:
-            lengths = [len(x[i]) for x in data]
-            if self.headers:
-                lengths.append(len(self.headers[i]))
-            lengths.append(self.colspec[i]['minwidth'])
-            counts = collections.Counter(lengths)
-            colstats.append({
-                "column": i,
-                "counts": counts,
-                "offt": max(lengths),
-                "chop_mass": 0,
-                "chop_count": 0,
-                "total_mass": sum(a * b for a, b in counts.items())
-            })
-        if self.clip:
-            self.adjust_clipping(max_width, colstats)
-        required = sum(x['offt'] for x in colstats)
-        if required < max_width:
-            # Fill remaining space proportionately.
-            remaining = max_width
-            for x in colstats[:-1]:
-                x['offt'] = math.floor((x['offt'] / required) * max_width)
-                remaining -= x['offt']
-            if colstats:
-                colstats[-1]['offt'] = remaining
-        return [(x['column'], x['offt']) for x in colstats]
-
-    def adjust_clipping(self, max_width, colstats):
-        """ Clip the columns based on the least negative affect it will have
-        on the viewing experience.  We take note of the total character mass
-        that will be clipped when each column should be narrowed.  The actual
-        score for clipping is based on percentage of total character mass,
-        which is the total number of characters in the column. """
-        next_score = lambda x: (x['counts'][x['offt']] + x['chop_mass'] + \
-                                x['chop_count']) / x['total_mass']
-        cur_width = lambda: sum(x['offt'] for x in colstats)
-        min_width = lambda x: self.colspec[x['column']]['minwidth']
-        while cur_width() > max_width:
-            nextaffects = [(next_score(x), i) for i, x in enumerate(colstats)
-                           if x['offt'] > min_width(x)]
-            if not nextaffects:
-                break  # All columns are as small as they can get.
-            nextaffects.sort()
-            chop = colstats[nextaffects[0][1]]
-            chop['chop_count'] += chop['counts'][chop['offt']]
-            chop['chop_mass'] += chop['chop_count']
-            chop['offt'] -= 1
-
-
 class Table(object):
     """ A visual layout for row oriented data (like csv).  Most of the code
     here is dedicated to fitting the data as losslessly as possible onto a
@@ -372,20 +217,21 @@ class Table(object):
     class, see the __init__ method, or use the helper function tabulate() for
     simple use cases. """
 
-    header_format = '<reverse>%s</reverse>'
     column_padding = 2
     column_align = 'left'  # {left,right,center}
     cliptext = '\u2026'  # ... as single char
+    clip_default = True
     try:
         cliptext.encode(sys.stdout.encoding)
     except UnicodeEncodeError:
         cliptext = '...'
     column_minwidth = len(cliptext)
+    renderer_types = {}
 
     def __init__(self, columns=None, headers=None, accessors=None, width=None,
-                 clip=True, flex=True, file=sys.stdout, header_format=None,
-                 cliptext=None, column_minwidth=None, column_padding=None,
-                 column_align=None):
+                 clip=None, flex=True, file=sys.stdout, cliptext=None,
+                 column_minwidth=None, column_padding=None,
+                 column_align=None, renderer=None):
         """ The .columns should be a list of width specs or a style dict.
         Width specs can be whole numbers representing fixed char widths,
         fractions representing percentages of available table width or None
@@ -453,12 +299,21 @@ class Table(object):
         self.accessors_def = accessors
         self.headers = headers
         self.width = width
-        self.clip = clip
         self.flex = flex
         self.file = file
         self.default_renderer = None
-        if header_format is not None:
-            self.header_format = header_format
+        clip_fallback = self.clip_default
+        if not renderer:
+            fallback = object()
+            if file is not sys.stdout or \
+               shutil.get_terminal_size((fallback, 0))[0] is fallback:
+                renderer = 'plain'
+                if clip is None:
+                    clip_fallback = False
+            else:
+                renderer = 'terminal'
+        self.renderer_class = self.lookup_renderer(renderer)
+        self.clip = clip if clip is not None else clip_fallback
         if cliptext is not None:
             self.cliptext = cliptext
         if column_padding is not None:
@@ -467,6 +322,17 @@ class Table(object):
             self.column_minwidth = column_minwidth
         if column_align is not None:
             self.column_align = column_align
+
+    def lookup_renderer(self, name):
+        return self.renderer_types[name]
+
+    @classmethod
+    def register_renderer(cls, renderer):
+        cls.renderer_types[renderer.name] = renderer
+
+    @classmethod
+    def unregister_renderer(cls, renderer):
+        del cls.renderer_types[renderer.name]
 
     def create_accessors(self, columns):
         if not self.accessors_def:
@@ -513,7 +379,7 @@ class Table(object):
                 raise ValueError("Indeterminate column count")
         accessors = self.create_accessors(columns)
         colspec = self.create_colspec(columns)
-        renderer = TableRenderer(colspec, accessors, self, seed_data)
+        renderer = self.renderer_class(colspec, accessors, self, seed_data)
         self.default_renderer = renderer
         return renderer
 
@@ -528,6 +394,270 @@ class Table(object):
 
     def print_row(self, row):
         return self.print([row])
+
+
+class TableRenderer(object):
+    """ A bundle of state for a particular table rendering job.  Each time a
+    table is to be printed to a file or the screen a new instance of this
+    object will be used to provide closure on the column spec and so forth.
+    This is essentially frozen state computed from a table instance's
+    definition. """
+
+    name = None
+
+    def __init__(self, colspec=None, accessors=None, table=None,
+                 seed_data=None):
+        """ All calculated values required for rendering a table are kept
+        here.  In theory a single Table instance can be used to render
+        multiple and differing datasets in a concurrent system.  Admittedly
+        this is over-engineered for a CLI suite and the result of a lazy
+        Sunday. """
+        self.colspec = colspec
+        self.accessors = accessors
+        self.capture_table_state(table)
+        self.seed = seed_data and list(self.render_data(seed_data))
+        self.widths = self.calc_widths(self.seed)
+        self.formatters = self.create_formatters()
+        self.headers_drawn = not self.headers
+
+    def print_header(self):
+        """ Should write and flush output to a screen or file. """
+        raise NotImplementedError("Subclass impl required")
+
+    def get_overflower(self, width):
+        raise NotImplementedError("Subclass impl required")
+
+    def get_aligner(self, alignment, width):
+        """ Return an alignment function for left, right, or center. """
+        raise NotImplementedError("Subclass impl required")
+
+    def cell_format(self, value):
+        """ Subclasses should put any visual formatting specific to their
+        rendering type here. """
+        return str(value)
+
+    def capture_table_state(self, table):
+        """ Capture state from the table instance and store locally for safe
+        keeping.  This is not specifically required but helps in keeping with
+        our pseudo "frozen" nature. """
+        for x in ('file', 'clip', 'cliptext', 'flex', 'width'):
+            setattr(self, x, getattr(table, x))
+        self.headers = table.headers and table.headers[:]
+
+    def render_data(self, data):
+        """ Get the data from the raw list of objects. """
+        for obj in data:
+            yield [self.cell_format(access(obj)) for access in self.accessors]
+
+    def flush(self):
+        """ Print any values stored in the render queue. """
+        if self.seed:
+            self.print_rendered(self.seed)
+            self.seed = None
+
+    def format_row(self, items):
+        """ Apply overflow, justification and padding to a row. """
+        return [formatter(x) for x, formatter in zip(items, self.formatters)]
+
+    def print_rendered(self, rendered_values):
+        """ Format and print the pre-rendered data. """
+        if not self.headers_drawn:
+            self.print_header()
+            self.headers_drawn = True
+        for row in rendered_values:
+            print(*self.format_row(row), sep='', file=self.file)
+
+    def print(self, data):
+        self.flush()
+        self.print_rendered(self.render_data(data))
+
+    def create_formatters(self):
+        """ Create formatter functions for each column that factor the width
+        and alignment settings.  They can then be stored in the render spec
+        for faster justification processing. """
+        noclip = lambda x: x
+        formatters = []
+        for spec, inner_w in zip(self.colspec, self.widths):
+            outer_w = inner_w + spec['padding']
+            overflow = self.get_overflower(inner_w) if self.clip else noclip
+            align = self.get_aligner(spec['align'], inner_w)
+            center = self.get_aligner('center', outer_w)
+            def fn(x, overflow=overflow, align=align, center=center):
+                return center(align(overflow(x)))
+            formatters.append(fn)
+        return formatters
+
+    def uniform_dist(self, spread, total):
+        """ Produce a uniform distribution of `total` across a list of
+        `spread` size. The result is a non-random and uniform. """
+        fraction, fixed_increment = math.modf(total / spread)
+        fixed_increment = int(fixed_increment)
+        balance = 0
+        dist = []
+        for _ in range(spread):
+            balance += fraction
+            withdrawl = 1 if balance > 0.5 else 0
+            if withdrawl:
+                balance -= withdrawl
+            dist.append(fixed_increment + withdrawl)
+        return dist
+
+    def calc_widths(self, sample_data):
+        """ Convert the colspec into absolute col widths. """
+        usable_width = self.width or shutil.get_terminal_size()[0]
+        usable_width -= sum(x['padding'] for x in self.colspec)
+        spec = [x['width'] for x in self.colspec]
+        remaining = usable_width
+        unspec = []
+        for i, x in enumerate(spec):
+            if x is None:
+                unspec.append(i)
+            elif x > 0 and x < 1:
+                spec[i] = w = math.floor(x * usable_width)
+                remaining -= w
+            else:
+                remaining -= x
+        if unspec:
+            if self.flex and sample_data:
+                for i, w in self.calc_flex(sample_data, remaining, unspec):
+                    spec[i] = w
+            else:
+                dist = self.uniform_dist(len(unspec), remaining)
+                for i, width in zip(unspec, dist):
+                    spec[i] = width
+        return spec
+
+    def calc_flex(self, data, max_width, cols):
+        """ Scan the entire data source returning the best width for each
+        column given the width constraint.  If some columns will clip we
+        calculate the best concession widths. """
+        colstats = []
+        for i in cols:
+            lengths = [len(x[i]) for x in data]
+            if self.headers:
+                lengths.append(len(self.headers[i]))
+            lengths.append(self.colspec[i]['minwidth'])
+            counts = collections.Counter(lengths)
+            colstats.append({
+                "column": i,
+                "counts": counts,
+                "offt": max(lengths),
+                "chop_mass": 0,
+                "chop_count": 0,
+                "total_mass": sum(a * b for a, b in counts.items())
+            })
+        if self.clip:
+            self.adjust_clipping(max_width, colstats)
+        required = sum(x['offt'] for x in colstats)
+        if required < max_width:
+            # Fill remaining space proportionately.
+            remaining = max_width
+            for x in colstats:
+                x['offt'] = math.floor((x['offt'] / required) * max_width)
+                remaining -= x['offt']
+            if remaining:
+                dist = self.uniform_dist(len(cols), remaining)
+                for adj, col in zip(dist, colstats):
+                    col['offt'] += adj
+        return [(x['column'], x['offt']) for x in colstats]
+
+    def adjust_clipping(self, max_width, colstats):
+        """ Clip the columns based on the least negative affect it will have
+        on the viewing experience.  We take note of the total character mass
+        that will be clipped when each column should be narrowed.  The actual
+        score for clipping is based on percentage of total character mass,
+        which is the total number of characters in the column. """
+        next_score = lambda x: (x['counts'][x['offt']] + x['chop_mass'] + \
+                                x['chop_count']) / x['total_mass']
+        cur_width = lambda: sum(x['offt'] for x in colstats)
+        min_width = lambda x: self.colspec[x['column']]['minwidth']
+        while cur_width() > max_width:
+            nextaffects = [(next_score(x), i) for i, x in enumerate(colstats)
+                           if x['offt'] > min_width(x)]
+            if not nextaffects:
+                break  # All columns are as small as they can get.
+            nextaffects.sort()
+            chop = colstats[nextaffects[0][1]]
+            chop['chop_count'] += chop['counts'][chop['offt']]
+            chop['chop_mass'] += chop['chop_count']
+            chop['offt'] -= 1
+
+
+    def center(self, width, fillchar=' '):
+        if width <= self.visual_len:
+            return self
+        padlen = width - self.visual_len
+        leftlen = padlen // 2
+        rightlen = padlen - leftlen
+        leftpad = (fillchar * leftlen,)
+        rightpad = (fillchar * rightlen,)
+        return type(self)(*leftpad+self.values+rightpad, length_hint=width)
+
+
+class PlainTableRenderer(TableRenderer):
+    """ Render output without any special formatting. """
+
+    name = 'plain'
+
+    def print_header(self):
+        headers = [x or '' for x in self.headers]
+        header = ''.join(map(str, self.format_row(headers)))
+        print(header, file=self.file)
+        print('-' * len(header), file=self.file)
+
+    def get_aligner(self, alignment, width):
+        if alignment in ('left', 'right'):
+            return operator.methodcaller('%sjust' % alignment[0], width)
+        elif alignment == 'center':
+            def fn(x):
+                lpad, rpad = str_center_padding(x, width)
+                return lpad + x + rpad
+            return fn
+
+    def get_overflower(self, width):
+        def fn(x):
+            if len(x) > width:
+                return x[:width-len(self.cliptext)] + self.cliptext
+            else:
+                return x
+        return fn
+
+Table.register_renderer(PlainTableRenderer)
+
+
+class TerminalTableRenderer(TableRenderer):
+    """ Render a table designed to fit/fill a terminal.  This renderer produces
+    the most human friendly output when on a terminal device. """
+
+    name = 'terminal'
+    header_format = '<reverse>%s</reverse>'
+
+    def cell_format(self, value):
+        return vtmlrender(value)
+
+    def print_header(self):
+        headers = [VTML(x or '') for x in self.headers]
+        header_row = ''.join(map(str, self.format_row(headers)))
+        vtmlprint(self.header_format % header_row, file=self.file)
+
+    def get_aligner(self, alignment, width):
+        align_funcs = {
+            "left": 'ljust',
+            "right": 'rjust',
+            "center": 'center'
+        }
+        return operator.methodcaller(align_funcs[alignment], width)
+
+    def get_overflower(self, width):
+        return operator.methodcaller('clip', width, self.cliptext)
+
+    def calc_widths(self, sample_data):
+        """ Snatch the terminal width if not already hard coded. """
+        if not self.width:
+            self.width or shutil.get_terminal_size()[0]
+        return super().calc_widths(sample_data)
+
+Table.register_renderer(TerminalTableRenderer)
 
 
 def tabulate(data, header=True, **table_options):
@@ -616,6 +746,8 @@ def dicttree(data, **options):
         }
     """
     def crawl(dictdata):
+        if not hasattr(dictdata, 'items'):
+            return None
         return [TreeNode(k, v and crawl(v)) for k, v in dictdata.items()]
     t = Tree(**options)
     t.render(crawl(data))

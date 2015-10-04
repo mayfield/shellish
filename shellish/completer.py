@@ -3,6 +3,7 @@ Tab completion handling.
 """
 
 import argparse
+import os
 
 __public__ = []
 
@@ -43,15 +44,32 @@ class ActionCompleter(object):
 
     __repr__ = __str__
 
-    def __call__(self, command, prefix):
+    def __call__(self, command, prefix, args):
         if self.last_complete is not command.last_invoke:
             self.cache.clear()
             self.last_complete = command.last_invoke
         try:
             choices = self.cache[prefix]
         except KeyError:
-            choices = self.cache[prefix] = self.completer(prefix)
+            args = self.silent_parse_args(command, args)
+            self.cache[prefix] = choices = self.completer(prefix, args)
         return choices
+
+    def silent_parse_args(self, command, args):
+        """ Silently attempt to parse args.  If there is a failure then we
+        ignore the effects.  Using an in-place namespace object ensures we
+        capture as many of the valid arguments as possible when the argparse
+        system would otherwise throw away the results. """
+        args_ns = argparse.Namespace()
+        stderr_save = argparse._sys.stderr
+        argparse._sys.stderr = os.devnull
+        try:
+            command.argparser.parse_known_args(args, args_ns)
+        except BaseException:
+            pass
+        finally:
+            argparse._sys.stderr = stderr_save
+        return args_ns
 
     def parse_nargs(self, nargs):
         """ Nargs is essentially a multi-type encoding.  We have to parse it

@@ -236,7 +236,8 @@ class Command(object):
         """ Do naive argument parsing so the completer has better ability to
         understand expansion rules. """
         line = line[:end]  # Ignore characters following the cursor.
-        args = self.split_line(line)[1:]
+        fullargs = self.split_line(line)[1:]
+        args = fullargs[:]
         options = self.deep_scan_parser(self.argparser)
 
         # Walk into options tree if subcommands are detected.
@@ -280,10 +281,10 @@ class Command(object):
                     trailing_action = action
                     if not action.full:
                         if action.reached_min:
-                            choices |= action(self, text)
+                            choices |= action(self, text, fullargs)
                             choices -= {action.key}
                         else:
-                            choices = action(self, text)
+                            choices = action(self, text, fullargs)
                             break
             else:
                 arg_buf.insert(0, x)
@@ -295,10 +296,10 @@ class Command(object):
             for x_action in options[None]:
                 x_action.consume(pos_args)
                 if not x_action.reached_min:
-                    choices = x_action(self, text)
+                    choices = x_action(self, text, fullargs)
                     break
                 elif not x_action.full:
-                    choices |= x_action(self, text)
+                    choices |= x_action(self, text, fullargs)
 
         return choices
 
