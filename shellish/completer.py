@@ -117,17 +117,14 @@ class ActionCompleter(object):
             extra = ''
         return name + extra
 
-    def choice_complete(self, prefix):
+    def choice_complete(self, prefix, args):
         return frozenset(x for x in self.choices if x.startswith(prefix))
 
-    def hint_complete(self, prefix):
+    def hint_complete(self, prefix, args):
         """ For arguments that don't have complete functions or .choices we
         can only hint about the argument details. The results are designed to
         not self-expand (ie, len(choices) > 1). """
-        return frozenset((
-            '<POSITIONAL: %s>' % self.about_action(),
-            self.sentinel
-        ))
+        return frozenset(('[%s]' % self.about_action(), self.sentinel))
 
     def proxy_complete(self, func):
         """ Pass completion work to foreign function. """

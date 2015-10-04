@@ -176,9 +176,11 @@ class Command(object):
         self.inject_context(shell=shell)
         shell.cmdloop()
 
-    def add_argument(self, *args, complete=None, **kwargs):
+    def add_argument(self, *args, complete=None, parser=None, **kwargs):
         """ Allow cleaner action supplementation. """
-        action = self.argparser.add_argument(*args, **kwargs)
+        if parser is None:
+            parser = self.argparser
+        action = parser.add_argument(*args, **kwargs)
         if complete:
             action.complete = complete
         return action
