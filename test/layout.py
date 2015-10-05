@@ -7,7 +7,7 @@ from shellish.layout import Table, TableRenderer, vtmlrender
 
 def calc_table(*columns, width=100, data=None, flex=False):
     t = Table(columns=columns, width=width, flex=flex, column_padding=0)
-    return t.render(data or []).widths
+    return t.make_renderer(data or []).widths
 
 
 class TabularUnflex(unittest.TestCase):
@@ -275,15 +275,114 @@ class TableDataSupport(unittest.TestCase):
 
     def test_columns_from_none_is_error(self):
         output, t = self.table()
-        self.assertRaises(ValueError, t.render)
+        self.assertRaises(ValueError, t.make_renderer)
 
     def test_columns_width_spec_only(self):
         output, t = self.table(columns=[None, None, None])
-        t.render()
+        t.make_renderer()
 
     def test_columns_empty_style_spec(self):
         output, t = self.table(columns=[{}, {}, {}])
-        t.render()
+        t.make_renderer()
+
+    def test_empty_iter(self):
+        output, t = self.table([None])
+        t.print(iter([]))
+        self.assertFalse(output())
+
+    def test_empty_list(self):
+        output, t = self.table([None])
+        t.print([])
+        self.assertFalse(output())
+
+    def test_gen_seed_over_under(self):
+        for seed_max in range(12):
+            output, t = self.table([None], width=1, column_padding=0)
+            t.max_seed = seed_max
+            def stream():
+                for i in range(10):
+                    yield [i]
+            t.print(stream())
+            self.assertEqual([int(x) for x in output()], list(range(10)))
+
+    def test_list_seed_over_under(self):
+        for seed_max in range(12):
+            output, t = self.table([None], width=1, column_padding=0)
+            t.max_seed = seed_max
+            data = [[i] for i in range(10)]
+            t.print(data)
+            self.assertEqual([int(x) for x in output()], list(range(10)))
+
+    def test_empty_iter_noflex(self):
+        output, t = self.table([None], flex=False)
+        t.print(iter([]))
+        self.assertFalse(output())
+
+    def test_empty_list_noflex(self):
+        output, t = self.table([20], flex=False)
+        t.print([])
+        self.assertFalse(output())
+
+    def test_gen_seed_over_under_noflex(self):
+        for seed_max in range(12):
+            output, t = self.table([None], flex=False, width=1,
+                                   column_padding=0)
+            t.max_seed = seed_max
+            def stream():
+                for i in range(10):
+                    yield [i]
+            t.print(stream())
+            self.assertEqual([int(x) for x in output()], list(range(10)))
+
+    def test_list_seed_over_under_noflex(self):
+        for seed_max in range(12):
+            output, t = self.table([1], flex=False, width=1, column_padding=0)
+            t.max_seed = seed_max
+            data = [[i] for i in range(10)]
+            t.print(data)
+            self.assertEqual([int(x) for x in output()], list(range(10)))
+
+
+class TableUsagePatterns(unittest.TestCase):
+
+    def table(self, *args, column_padding=0, **kwargs):
+        self.output = io.StringIO()
+        return Table(*args, file=self.output, column_padding=column_padding,
+                     **kwargs)
+
+    def get_lines(self):
+        return self.output.getvalue().splitlines()
+
+    def test_headers_once(self):
+        t = self.table(headers=['foo'], width=3)
+        t.print([['one']])
+        t.print([['two']])
+        self.assertEquals(self.get_lines(), ['foo', '---', 'one', 'two'])
+
+
+class TableCalcs(unittest.TestCase):
+
+    def test_unflex_spec_underflow(self):
+        widths = calc_table(*[1/26] * 26)
+        self.assertLess(statistics.variance(widths), 1)
+        self.assertEqual(sum(widths), 78)  # uses floor() so it's lossy
+
+    def test_unflex_unspec_underflow(self):
+        widths = calc_table(*[None] * 26)
+        self.assertLess(statistics.variance(widths), 1)
+        self.assertEqual(sum(widths), 100)
+
+    def test_equal_flex_underflow_all_fits(self):
+        widths = calc_table(*[None] * 26, flex=True, data=[['a'] * 26])
+        self.assertLess(statistics.variance(widths), 1)
+        self.assertEqual(sum(widths), 100)
+
+    def test_uniform_dist(self):
+        dist = TableRenderer.uniform_dist
+        for i in range(1, 101):
+            for ii in range(151):
+                d = dist(None, i, ii)
+                self.assertEqual(sum(d), ii, (i, ii, d))
 
 
 class TableUsagePatterns(unittest.TestCase):

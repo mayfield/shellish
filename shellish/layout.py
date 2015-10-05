@@ -10,8 +10,18 @@ import math
 import operator
 import shutil
 import sys
+import time
 
-__public__ = ['columnize', 'tabulate', 'vtmlprint', 'vtmlrender', 'dicttree']
+__public__ = ['columnize', 'tabulate', 'vtmlprint', 'vtmlrender', 'dicttree',
+              'Table']
+
+
+def is_terminal():
+    """ Return true if the device is a terminal as apposed to a pipe or
+    file.  This is usually used to determine if vt100 or unicode characters
+    should be used or not. """
+    fallback = object()
+    return shutil.get_terminal_size((fallback, 0))[0] is not fallback
 
 
 class VTMLParser(html.parser.HTMLParser):
@@ -60,22 +70,6 @@ class VTMLParser(html.parser.HTMLParser):
 vtmlparser = VTMLParser()
 
 
-def str_center_padding(value, width, fillchar=' '):
-    """ Consistently center strings so uneven padding always favors trailing
-    pad.  When centering clumps of text this produces better results than
-    str.center which alternates which side uneven padding occurs on.  This
-    function returns a tuple of (leftpad, rightpad). """
-    value_len = len(value)
-    if width <= value_len:
-        return '', ''
-    padlen = width - value_len
-    leftlen = padlen // 2
-    rightlen = padlen - leftlen
-    leftpad = fillchar * leftlen
-    rightpad = fillchar * rightlen
-    return leftpad, rightpad
-
-
 @functools.total_ordering
 class VTML(object):
     """ A str-like object that has an adjusted length to compensate for
@@ -113,12 +107,17 @@ class VTML(object):
     def __add__(self, item):
         return type(self)(*(self.values + item.values))
 
+    def is_opcode(self, item):
+        """ Is the string item a vt100 op code. Empty strings return True."""
+        return item and item[0] == '\033'
+
     def text(self):
         """ Return just the text content of this string without opcodes. """
         return ''.join(x for x in self.values if not self.is_opcode(x))
 
-    def is_opcode(self, item):
-        return item and item[0] == '\033'
+    def plain(self):
+        """ Similar to `text` but returns valid VTML instance. """
+        return type(self)(*itertools.filterfalse(self.is_opcode, self.values))
 
     def clip(self, length, cliptext=''):
         """ Use instead of slicing to compensate for opcode behavior. """
@@ -162,30 +161,40 @@ class VTML(object):
         return type(self)(*pad+self.values, length_hint=width)
 
     def center(self, width, fillchar=' '):
-        leftpad, rightpad = str_center_padding(self, width, fillchar)
-        if not leftpad and not rightpad:
+        """ Center strings so uneven padding always favors trailing pad.  When
+        centering clumps of text this produces better results than str.center
+        which alternates which side uneven padding occurs on. """
+        if width <= self.visual_len:
             return self
+        padlen = width - self.visual_len
+        leftlen = padlen // 2
+        rightlen = padlen - leftlen
+        leftpad = fillchar * leftlen
+        rightpad = fillchar * rightlen
         chained = (leftpad,) + self.values + (rightpad,)
         return type(self)(*chained, length_hint=width)
 
 
-def vtmlrender(vtmarkup):
+def vtmlrender(vtmarkup, plain=None):
     """ Look for vt100 markup and render to vt opcodes. """
+    if isinstance(vtmarkup, VTML):
+        return vtmarkup.plain() if plain else vtmarkup
     try:
         vtmlparser.feed(vtmarkup)
         vtmlparser.close()
     except:
         return VTML(str(vtmarkup))
     else:
-        return vtmlparser.getvalue()
+        value = vtmlparser.getvalue()
+        return value.plain() if plain else value
     finally:
         vtmlparser.reset()
 
 
-def vtmlprint(*values, **options):
+def vtmlprint(*values, plain=None, **options):
     """ Follow normal print() signature but look for vt100 codes for richer
     output. """
-    print(*map(vtmlrender, values), **options)
+    print(*[vtmlrender(x, plain=plain) for x in values], **options)
 
 
 def columnize(items, width=None, file=sys.stdout):
@@ -219,6 +228,7 @@ class Table(object):
 
     column_padding = 2
     column_align = 'left'  # {left,right,center}
+    title_align = 'left'
     cliptext = '\u2026'  # ... as single char
     clip_default = True
     try:
@@ -228,10 +238,17 @@ class Table(object):
     column_minwidth = len(cliptext)
     renderer_types = {}
 
+    # You probably shouldn't mess with these unless you really need custom
+    # rendering performance.  Chances are you really don't and should
+    # manage your data stream more carefully first.
+    min_render_prefill = 5
+    max_render_prefill = 200
+    max_render_delay = 2
+
     def __init__(self, columns=None, headers=None, accessors=None, width=None,
                  clip=None, flex=True, file=sys.stdout, cliptext=None,
-                 column_minwidth=None, column_padding=None,
-                 column_align=None, renderer=None):
+                 column_minwidth=None, column_padding=None, column_align=None,
+                 renderer=None, title=None, title_align=None):
         """ The .columns should be a list of width specs or a style dict.
         Width specs can be whole numbers representing fixed char widths,
         fractions representing percentages of available table width or None
@@ -295,6 +312,7 @@ class Table(object):
         By default the columns will clip text that overflows; Set .clip to
         False to disable this behavior but be warned the table will not look
         good. """
+        self.title = title
         self.columns_def = columns
         self.accessors_def = accessors
         self.headers = headers
@@ -304,9 +322,7 @@ class Table(object):
         self.default_renderer = None
         clip_fallback = self.clip_default
         if not renderer:
-            fallback = object()
-            if file is not sys.stdout or \
-               shutil.get_terminal_size((fallback, 0))[0] is fallback:
+            if file is not sys.stdout or not is_terminal():
                 renderer = 'plain'
                 if clip is None:
                     clip_fallback = False
@@ -322,6 +338,8 @@ class Table(object):
             self.column_minwidth = column_minwidth
         if column_align is not None:
             self.column_align = column_align
+        if title_align is not None:
+            self.title_align = title_align
 
     def lookup_renderer(self, name):
         return self.renderer_types[name]
@@ -334,7 +352,7 @@ class Table(object):
     def unregister_renderer(cls, renderer):
         del cls.renderer_types[renderer.name]
 
-    def create_accessors(self, columns):
+    def make_accessors(self, columns):
         if not self.accessors_def:
             accessors = [operator.itemgetter(i) for i in range(columns)]
         else:
@@ -362,35 +380,34 @@ class Table(object):
                     dst['width'] = src
         return spec
 
-    def render(self, seed_data=None):
+    def make_renderer(self, data=None):
         """ Consume and analyze everything we know up to this point and create
         a renderer instance that can be used for writing rows hence forth. """
         columns = (self.columns_def and len(self.columns_def)) or \
                   (self.headers and len(self.headers)) or \
                   (self.accessors_def and len(self.accessors_def))
         if not columns:
-            if seed_data:
+            if data:
                 # Peek into the data stream as a last resort.
-                seediter = iter(seed_data)
-                peek = next(seediter)
+                tmp_iter = iter(data)
+                peek = next(tmp_iter)
                 columns = len(peek)
-                seed_data = itertools.chain([peek], seediter)
+                data = itertools.chain([peek], tmp_iter)
             else:
                 raise ValueError("Indeterminate column count")
-        accessors = self.create_accessors(columns)
+        accessors = self.make_accessors(columns)
         colspec = self.create_colspec(columns)
-        renderer = self.renderer_class(colspec, accessors, self, seed_data)
-        self.default_renderer = renderer
+        renderer = self.renderer_class(colspec, accessors, self, data)
         return renderer
 
     def print(self, rows):
         """ Write the data to our output stream (stdout).  If the table is not
-        rendered yet, we will force a render now. """
+        rendered yet, we will make a renderer instance which will freeze
+        state. """
+        row_iter = iter(rows)
         if not self.default_renderer:
-            r = self.render(rows)
-            r.flush()
-            return
-        self.default_renderer.print(rows)
+            self.default_renderer = self.make_renderer(row_iter)
+        self.default_renderer.print(row_iter)
 
     def print_row(self, row):
         return self.print([row])
@@ -406,7 +423,7 @@ class TableRenderer(object):
     name = None
 
     def __init__(self, colspec=None, accessors=None, table=None,
-                 seed_data=None):
+                 seed=None):
         """ All calculated values required for rendering a table are kept
         here.  In theory a single Table instance can be used to render
         multiple and differing datasets in a concurrent system.  Admittedly
@@ -415,49 +432,87 @@ class TableRenderer(object):
         self.colspec = colspec
         self.accessors = accessors
         self.capture_table_state(table)
-        self.seed = seed_data and list(self.render_data(seed_data))
-        self.widths = self.calc_widths(self.seed)
-        self.formatters = self.create_formatters()
+        self.prerendered = None
+        self.seed = None
+        if seed:
+            self.prerendered, self.seed = self.seed_collect(seed)
+        self.widths = self.calc_widths(self.prerendered)
+        self.formatters = self.make_formatters()
         self.headers_drawn = not self.headers
+
+    def seed_collect(self, seed):
+        """ Collect values from the seed iterator as long as we can.  If the
+        data stream is very large or taking too long we'll stop so the UI can
+        render.  The goal is to reduce render latency but give the calc_widths
+        routine as much data as we can reasonably afford to. """
+        minfill = self.min_render_prefill
+        maxfill = self.max_render_prefill
+        maxtime = self.max_render_delay
+        seed_iter = iter(seed)
+        start = time.monotonic()
+        def constrained_feed():
+            for i, x in enumerate(seed_iter):
+                yield x
+                if i < minfill:
+                    continue
+                if i > maxfill or (time.monotonic() - start) >= maxtime:
+                    return
+        return list(self.render_data(constrained_feed())), seed_iter
 
     def print_header(self):
         """ Should write and flush output to a screen or file. """
         raise NotImplementedError("Subclass impl required")
 
-    def get_overflower(self, width):
-        raise NotImplementedError("Subclass impl required")
-
-    def get_aligner(self, alignment, width):
-        """ Return an alignment function for left, right, or center. """
-        raise NotImplementedError("Subclass impl required")
-
     def cell_format(self, value):
         """ Subclasses should put any visual formatting specific to their
         rendering type here. """
-        return str(value)
+        return vtmlrender(value)
+
+    def get_overflower(self, width):
+        return operator.methodcaller('clip', width, self.cliptext)
+
+    def get_aligner(self, alignment, width):
+        align_funcs = {
+            "left": 'ljust',
+            "right": 'rjust',
+            "center": 'center'
+        }
+        return operator.methodcaller(align_funcs[alignment], width)
 
     def capture_table_state(self, table):
         """ Capture state from the table instance and store locally for safe
         keeping.  This is not specifically required but helps in keeping with
         our pseudo "frozen" nature. """
-        for x in ('file', 'clip', 'cliptext', 'flex', 'width'):
+        for x in ('file', 'clip', 'cliptext', 'flex', 'width', 'title',
+                  'title_align', 'max_render_prefill', 'max_render_delay',
+                  'min_render_prefill'):
             setattr(self, x, getattr(table, x))
+        if not self.width:
+            self.width = shutil.get_terminal_size()[0]
         self.headers = table.headers and table.headers[:]
 
     def render_data(self, data):
         """ Get the data from the raw list of objects. """
+        if self.prerendered:
+            for x in self.prerendered:
+                yield x
+            self.prerendered = None
+        if self.seed:
+            data = itertools.chain(self.seed, data)
+            self.seed = None
         for obj in data:
             yield [self.cell_format(access(obj)) for access in self.accessors]
-
-    def flush(self):
-        """ Print any values stored in the render queue. """
-        if self.seed:
-            self.print_rendered(self.seed)
-            self.seed = None
 
     def format_row(self, items):
         """ Apply overflow, justification and padding to a row. """
         return [formatter(x) for x, formatter in zip(items, self.formatters)]
+
+    def format_fullwidth(self, value):
+        """ Return a full width column. Note that the padding is inherited
+        from the first cell which inherits from column_padding. """
+        pad = self.colspec[0]['padding']
+        fmt = self.make_formatter(self.width - pad, pad, self.title_align)
+        return fmt(value)
 
     def print_rendered(self, rendered_values):
         """ Format and print the pre-rendered data. """
@@ -468,24 +523,23 @@ class TableRenderer(object):
             print(*self.format_row(row), sep='', file=self.file)
 
     def print(self, data):
-        self.flush()
         self.print_rendered(self.render_data(data))
 
-    def create_formatters(self):
-        """ Create formatter functions for each column that factor the width
-        and alignment settings.  They can then be stored in the render spec
-        for faster justification processing. """
-        noclip = lambda x: x
-        formatters = []
-        for spec, inner_w in zip(self.colspec, self.widths):
-            outer_w = inner_w + spec['padding']
-            overflow = self.get_overflower(inner_w) if self.clip else noclip
-            align = self.get_aligner(spec['align'], inner_w)
-            center = self.get_aligner('center', outer_w)
-            def fn(x, overflow=overflow, align=align, center=center):
-                return center(align(overflow(x)))
-            formatters.append(fn)
-        return formatters
+    def make_formatter(self, width, padding, alignment):
+        """ Create formatter function that factors the width and alignment
+        settings. """
+        overflow = self.get_overflower(width) if self.clip else lambda x: x
+        align = self.get_aligner(alignment, width)
+        pad = self.get_aligner('center', width + padding)
+        def fn(x, overflow=overflow, align=align, pad=pad):
+            return pad(align(overflow(x)))
+        return fn
+
+    def make_formatters(self):
+        """ Create a list formatter functions for each column.  They can then
+        be stored in the render spec for faster justification processing. """
+        return [self.make_formatter(inner_w, spec['padding'], spec['align'])
+                for spec, inner_w in zip(self.colspec, self.widths)]
 
     def uniform_dist(self, spread, total):
         """ Produce a uniform distribution of `total` across a list of
@@ -503,8 +557,9 @@ class TableRenderer(object):
         return dist
 
     def calc_widths(self, sample_data):
-        """ Convert the colspec into absolute col widths. """
-        usable_width = self.width or shutil.get_terminal_size()[0]
+        """ Convert the colspec into absolute col widths. The sample data
+        should be already rendered if used in conjunction with a Table. """
+        usable_width = self.width
         usable_width -= sum(x['padding'] for x in self.colspec)
         spec = [x['width'] for x in self.colspec]
         remaining = usable_width
@@ -583,17 +638,6 @@ class TableRenderer(object):
             chop['offt'] -= 1
 
 
-    def center(self, width, fillchar=' '):
-        if width <= self.visual_len:
-            return self
-        padlen = width - self.visual_len
-        leftlen = padlen // 2
-        rightlen = padlen - leftlen
-        leftpad = (fillchar * leftlen,)
-        rightpad = (fillchar * rightlen,)
-        return type(self)(*leftpad+self.values+rightpad, length_hint=width)
-
-
 class PlainTableRenderer(TableRenderer):
     """ Render output without any special formatting. """
 
@@ -602,25 +646,13 @@ class PlainTableRenderer(TableRenderer):
     def print_header(self):
         headers = [x or '' for x in self.headers]
         header = ''.join(map(str, self.format_row(headers)))
+        if self.title:
+            print(self.format_fullwidth(self.title))
         print(header, file=self.file)
         print('-' * len(header), file=self.file)
 
-    def get_aligner(self, alignment, width):
-        if alignment in ('left', 'right'):
-            return operator.methodcaller('%sjust' % alignment[0], width)
-        elif alignment == 'center':
-            def fn(x):
-                lpad, rpad = str_center_padding(x, width)
-                return lpad + x + rpad
-            return fn
-
-    def get_overflower(self, width):
-        def fn(x):
-            if len(x) > width:
-                return x[:width-len(self.cliptext)] + self.cliptext
-            else:
-                return x
-        return fn
+    def cell_format(self, value):
+        return vtmlrender(value, plain=True)
 
 Table.register_renderer(PlainTableRenderer)
 
@@ -632,30 +664,13 @@ class TerminalTableRenderer(TableRenderer):
     name = 'terminal'
     header_format = '<reverse>%s</reverse>'
 
-    def cell_format(self, value):
-        return vtmlrender(value)
-
     def print_header(self):
         headers = [VTML(x or '') for x in self.headers]
-        header_row = ''.join(map(str, self.format_row(headers)))
-        vtmlprint(self.header_format % header_row, file=self.file)
-
-    def get_aligner(self, alignment, width):
-        align_funcs = {
-            "left": 'ljust',
-            "right": 'rjust',
-            "center": 'center'
-        }
-        return operator.methodcaller(align_funcs[alignment], width)
-
-    def get_overflower(self, width):
-        return operator.methodcaller('clip', width, self.cliptext)
-
-    def calc_widths(self, sample_data):
-        """ Snatch the terminal width if not already hard coded. """
-        if not self.width:
-            self.width or shutil.get_terminal_size()[0]
-        return super().calc_widths(sample_data)
+        header = ''.join(map(str, self.format_row(headers)))
+        if self.title:
+            title = self.format_fullwidth(VTML(self.title))
+            vtmlprint('<reverse><b>%s</b></reverse>' % title, file=self.file)
+        vtmlprint(self.header_format % header, file=self.file)
 
 Table.register_renderer(TerminalTableRenderer)
 
@@ -681,8 +696,9 @@ def tabulate(data, header=True, **table_options):
 
 class TreeNode(object):
 
-    def __init__(self, value, children=None):
+    def __init__(self, value, children=None, label=None):
         self.value = value
+        self.label = label
         self.children = children if children is not None else []
 
     def __lt__(self, item):
@@ -692,7 +708,7 @@ class TreeNode(object):
 class Tree(object):
     """ Construct a visual tree from a data source. """
 
-    tree_L = '└── '.encode().decode()
+    tree_L = '└── '
     tree_T = '├── '
     tree_vertspace = '│   '
     try:
@@ -702,15 +718,25 @@ class Tree(object):
         tree_T = '+-- '
         tree_vertspace = '|   '
 
-    def __init__(self, formatter=None, sort_key=None):
-        self.formatter = formatter or (lambda x: x.value)
+    def __init__(self, formatter=None, sort_key=None, plain=None):
+        self.formatter = formatter or self.default_formatter
         self.sort_key = sort_key
+        if plain is None:
+            plain = not is_terminal()
+        self.plain = plain
+
+    def default_formatter(self, node):
+        if node.label is not None:
+            return '%s: <b>%s</b>' % (node.value, node.label)
+        else:
+            return str(node.value)
 
     def render(self, nodes, prefix=None):
-        end = len(nodes) - 1
+        node_list = list(nodes)
+        end = len(node_list) - 1
         if self.sort_key is not False:
-            nodes = sorted(nodes, key=self.sort_key)
-        for i, x in enumerate(nodes):
+            node_list.sort(key=self.sort_key)
+        for i, x in enumerate(node_list):
             if prefix is not None:
                 line = [prefix]
                 if end == i:
@@ -719,23 +745,24 @@ class Tree(object):
                     line.append(self.tree_T)
             else:
                 line = ['']
-            vtmlprint(''.join(line) + self.formatter(x))
+            yield vtmlrender(''.join(line + [self.formatter(x)]),
+                             plain=self.plain)
             if x.children:
                 if prefix is not None:
                     line[-1] = '    ' if end == i else self.tree_vertspace
-                self.render(x.children, prefix=''.join(line))
+                yield from self.render(x.children, prefix=''.join(line))
 
 
-def dicttree(data, **options):
+def dicttree(data, render_only=False, **options):
     """ Render a tree structure based on a well formed dictionary. The keys
     should be titles and the values are children of the node or None if it's
-    a leaf node.  E.g.
+    an empty leaf node;  Primitives are valid leaf node labels too.  E.g.
 
         sample = {
             "Leaf 1": None,
-            "Leaf 2": None,
+            "Leaf 2": "I have a label on me",
             "Branch A": {
-                "Sub Leaf 1": None,
+                "Sub Leaf 1 with float label": 3.14,
                 "Sub Branch": {
                     "Deep Leaf": None
                 }
@@ -745,10 +772,18 @@ def dicttree(data, **options):
             }
         }
     """
-    def crawl(dictdata):
-        if not hasattr(dictdata, 'items'):
-            return None
-        return [TreeNode(k, v and crawl(v)) for k, v in dictdata.items()]
+    def crawl(obj):
+        for key, value in obj.items():
+            if hasattr(value, 'items'):
+                yield TreeNode(key, children=crawl(value))
+            elif value is not None:
+                yield TreeNode(key, label=value)
+            else:
+                yield TreeNode(key)
     t = Tree(**options)
-    t.render(crawl(data))
-    return t
+    render_gen = t.render(crawl(data))
+    if render_only:
+        return render_gen
+    else:
+        for x in render_gen:
+            print(x)
