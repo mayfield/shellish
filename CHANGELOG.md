@@ -2,10 +2,7 @@
 
 ## [Unreleased] - unreleased
 
-## [0.8.0] - 2015-10-08
-### Changed
-- Command now takes `title` and `desc` instead of `doc` argument.
-- A Command subclass is not required to provide a docstring.
+## [0.9.0] - 2015-10-08
 - The `complete` function to `Command.add_argument` takes and args
   variable now, which is a best-effort `argparse.Namespace` of the
   arguments seen at that point in the completion life cycle.
@@ -18,6 +15,12 @@
 
 ### Added
 - Made `data` module with caching decorators; `hone_cache` and `ttl_cache`
+
+
+## [0.8.0] - 2015-10-02
+### Changed
+- Command now takes `title` and `desc` instead of `doc` argument.
+- A Command subclass is not required to provide a docstring.
 
 
 ## [0.7.0] - 2015-10-01
@@ -96,7 +99,8 @@
 - First stable release
 
 
-[unreleased]: https://github.com/mayfield/shellish/compare/v0.8.0...HEAD
+[unreleased]: https://github.com/mayfield/shellish/compare/v0.9.0...HEAD
+[0.9.0]: https://github.com/mayfield/shellish/compare/v0.8.0...v0.9.0
 [0.8.0]: https://github.com/mayfield/shellish/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/mayfield/shellish/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/mayfield/shellish/compare/v0.5.1...v0.6.0
