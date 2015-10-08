@@ -2,7 +2,7 @@
 
 ## [Unreleased] - unreleased
 
-## [0.8.0] - 2015-10-02
+## [0.8.0] - 2015-10-08
 ### Changed
 - Command now takes `title` and `desc` instead of `doc` argument.
 - A Command subclass is not required to provide a docstring.
@@ -15,6 +15,9 @@
 - Refactor of `TableRenderer` to be selectable by user and pluggable by
   developers.  You can register new `TableRenderer` classes for output
   formats such as HTML, etc.
+
+### Added
+- Made `data` module with caching decorators; `hone_cache` and `ttl_cache`
 
 
 ## [0.7.0] - 2015-10-01
