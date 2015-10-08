@@ -96,7 +96,7 @@ class TTLMapping(collections.abc.MutableMapping):
 
 
 def hone_cache(maxsize=128, maxage=None, refineby='startswith',
-               store_partials=True):
+               store_partials=False):
     """ A caching decorator that follows after the style of lru_cache. Calls
     that are sharper than previous requests are returned from the cache after
     honing in on the requested results using the `refineby` technique.
@@ -160,8 +160,9 @@ def make_hone_cache_wrapper(inner_func, maxsize, maxage, finder,
     hits = misses = partials = 0
     cache = TTLMapping(maxsize, maxage)
 
-    def wrapper(radix):
+    def wrapper(*args):
         nonlocal hits, misses, partials
+        radix = args[-1]
         # Attempt fast cache hit first.
         try:
             r = cache[radix]
@@ -185,7 +186,7 @@ def make_hone_cache_wrapper(inner_func, maxsize, maxage, finder,
                 cache[radix] = r
             return r
         misses += 1
-        cache[radix] = r = inner_func(radix)
+        cache[radix] = r = inner_func(*args)
         return r
 
     def cache_info():

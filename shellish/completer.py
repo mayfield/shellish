@@ -10,8 +10,7 @@ __public__ = []
 
 class ActionCompleter(object):
     """ Stateful behavior for tab completion.  Calling this instance returns
-    valid choices for the action with the given prefix (if any).  The results
-    are cached until the command is invoked/aborted. """
+    valid choices for the action. """
 
     sentinel = ' '
 
@@ -21,8 +20,6 @@ class ActionCompleter(object):
         self.choices = None
         self.consumed = 0
         self.subparsers = None
-        self.last_complete = None
-        self.cache = {}
         if action.choices and hasattr(action.choices, 'items'):
             self.subparsers = action.choices.copy()
         if action.option_strings:
@@ -45,15 +42,8 @@ class ActionCompleter(object):
     __repr__ = __str__
 
     def __call__(self, command, prefix, args):
-        if self.last_complete is not command.last_invoke:
-            self.cache.clear()
-            self.last_complete = command.last_invoke
-        try:
-            choices = self.cache[prefix]
-        except KeyError:
-            args = self.silent_parse_args(command, args)
-            self.cache[prefix] = choices = self.completer(prefix, args)
-        return choices
+        args = self.silent_parse_args(command, args)
+        return self.completer(prefix, args)
 
     def silent_parse_args(self, command, args):
         """ Silently attempt to parse args.  If there is a failure then we
