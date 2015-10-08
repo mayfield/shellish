@@ -7,16 +7,17 @@ import collections.abc
 import functools
 import time
 
-__public__ = ['hone_cache']
+__public__ = ['hone_cache', 'ttl_cache', 'TTLMapping']
 
 hone_cache_finders = {}
-TTLCacheEntry = collections.namedtuple("TTLCacheEntry", 'ctime, ref')
-HoneCacheInfo = collections.namedtuple("HoneCacheInfo", 'hits, misses, '
-                                       'maxsize, currsize, partials, maxage, '
-                                       'finder')
+TTLCacheInfo = collections.namedtuple("TTLCacheInfo", ('hits', 'misses',
+                                      'maxsize', 'currsize', 'maxage'))
+HoneCacheInfo = collections.namedtuple('HoneCacheInfo', TTLCacheInfo._fields +
+                                       ('partials', 'findger'))
+TTLMappingEntry = collections.namedtuple("TTLMappingEntry", 'ctime, ref')
 
 
-class TTLCache(collections.abc.MutableMapping):
+class TTLMapping(collections.abc.MutableMapping):
     """ Sized and aged mapping.  The time-to-live is fixed for the entire
     cache to simplify the garbage collector. """
 
@@ -29,11 +30,8 @@ class TTLCache(collections.abc.MutableMapping):
         super().__init__()
 
     def is_expired(self, entry, time=None):
-        if self.ttl is None:
-            return True
-        if time is None:
-            time = self.timer()
-        return time - entry.ctime <= self.ttl
+        time = self.timer() if time is None else time
+        return time - entry.ctime > self.ttl
 
     def __delitem__(self, key):
         del self.data[key]
@@ -42,55 +40,63 @@ class TTLCache(collections.abc.MutableMapping):
         """ Return valid keys as of each look into the iterator.  If the
         iterator is not used right away the keys returned will be those that
         are valid at view time and not when the iterator was created. """
-        return (k for k, e in self.data.items() if self.is_expired(e))
+        if self.ttl is None:
+            return iter(self.data)
+        else:
+            return (k for k, e in self.data.items() if not self.is_expired(e))
 
     def __len__(self):
-        """ Oddly this can be one of the more expensive calls since we may have
-        to GC a lot of objects.  Best to avoid using it if you can. """
-        self.gc(fullcollect=True)
+        self.gc()
         return len(self.data)
 
     def __setitem__(self, key, value):
         """ Wrap an item with a timestamp and if replacing an existing key
         move it to the end. """
         move = key in self.data
-        entry = TTLCacheEntry(self.timer(), value)
+        time = self.timer() if self.ttl is not None else None
+        entry = TTLMappingEntry(time, value)
         self.data[key] = entry
         if move:
             self.data.move_to_end(key)
-        self.gc(fullcollect=False)
+        self.gc()
 
     def __getitem__(self, key):
         """ Unwrap and check the vitality of the entry. """
-        entry =  self.data[key]
-        if not self.is_expired(entry):
-            del self[key]
+        entry = self.data[key]
+        if self.ttl is not None and self.is_expired(entry):
+            del self.data[key]
             raise KeyError(key)
         return entry.ref
 
     def __contains__(self, key):
+        if self.ttl is None:
+            return key in self.data
         try:
-            return self.data[key].is_expired()
+            return not self.is_expired(self.data[key])
         except KeyError:
             return False
 
-    def gc(self, fullcollect=True):
-        """ Garbage collect overflow and/or aged entries if `fullcollect`. """
-        collect = 0
-        size = len(self.data)
-        now = self.timer()
+    def gc(self):
+        """ Garbage collect overflow and/or aged entries. """
+        manifest = []
+        overlimit = len(self.data) - self.maxsize \
+                    if self.maxsize is not None else 0
+        now = self.ttl is not None and self.timer()
         for key, entry in self.data.items():
-            if (self.maxsize is not None and size - collect > self.maxsize) or \
-               (fullcollect and not self.is_expired(entry, time=now)):
-                collect += 1
+            if overlimit > 0 or (now and self.is_expired(entry, time=now)):
+                overlimit -= 1
+                manifest.append(key)
             else:
                 break
-        for i in range(collect):
-            self.data.popitem(last=False)
-        return collect
+        for x in manifest:
+            del self.data[x]
+
+    def clear(self):
+        self.data.clear()
 
 
-def hone_cache(maxsize=128, maxage=None, refineby='startswith'):
+def hone_cache(maxsize=128, maxage=None, refineby='startswith',
+               store_partials=True):
     """ A caching decorator that follows after the style of lru_cache. Calls
     that are sharper than previous requests are returned from the cache after
     honing in on the requested results using the `refineby` technique.
@@ -123,13 +129,15 @@ def hone_cache(maxsize=128, maxage=None, refineby='startswith'):
         finder = refineby
 
     def decorator(inner_func):
-        wrapper = make_hone_cache_wrapper(inner_func, maxsize, maxage, finder)
+        wrapper = make_hone_cache_wrapper(inner_func, maxsize, maxage, finder,
+                                          store_partials)
         return functools.update_wrapper(wrapper, inner_func)
     return decorator
 
 
-def hone_cache_startswith_finder(radix, partial, partial_radix):
+def hone_cache_startswith_finder(radix, partial_radix, partial):
     return type(partial)(x for x in partial if x.startswith(radix))
+
 hone_cache_finders['startswith'] = hone_cache_startswith_finder
 
 
@@ -137,50 +145,53 @@ def hone_cache_container_finder(radix, partial_radix, partial):
     path_offt = radix[len(partial_radix):]
     for x in path_offt:
         partial = partial[x]
+    return partial
+
 hone_cache_finders['container'] = hone_cache_container_finder
 
 
-def make_hone_cache_wrapper(inner_func, maxsize, maxage, finder):
+def make_hone_cache_wrapper(inner_func, maxsize, maxage, finder,
+                            store_partials):
     """ Keeps a cache of requests we've already made and use that for
     generating results if possible.  If the user asked for a root prior
     to this call we can use it to skip a new lookup using `finder`.  A
     top-level lookup will effectively serves as a global cache. """
 
     hits = misses = partials = 0
-    cache = TTLCache(maxsize, ttl=maxage)
-    miss = object()
+    cache = TTLMapping(maxsize, maxage)
 
     def wrapper(radix):
         nonlocal hits, misses, partials
-        radix_size = len(radix)
-        for i in range(radix_size, -1, -1):
+        # Attempt fast cache hit first.
+        try:
+            r = cache[radix]
+        except KeyError:
+            pass
+        else:
+            hits += 1
+            return r
+        for i in range(len(radix) - 1, -1, -1):
             partial_radix = radix[:i]
-            partial = cache.get(partial_radix, miss)
-            if partial is not miss:
-                if i == radix_size:
-                    hits += 1
-                    return partial
-                else:
-                    try:
-                        print("PARTIAL")
-                        r = finder(radix, partial_radix, partial)
-                    except:
-                        import traceback
-                        traceback.print_stack()
-                        print("EX DEFER")
-                        break  # Defer to full call for errors.
-                    else:
-                        partials += 1
-                        return r
-        print("MISSSSS", radix)
+            try:
+                partial = cache[partial_radix]
+            except KeyError:
+                continue
+            try:
+                r = finder(radix, partial_radix, partial)
+            except:
+                break  # Treat any exception as a miss.
+            partials += 1
+            if store_partials:
+                cache[radix] = r
+            return r
         misses += 1
         cache[radix] = r = inner_func(radix)
         return r
 
     def cache_info():
         """ Emulate lru_cache so this is a low touch replacement. """
-        return HoneCacheInfo(hits, misses, maxsize, len(cache), partials,
-                             maxage, finder)
+        return HoneCacheInfo(hits, misses, maxsize, len(cache), maxage,
+                             partials, finder)
 
     def cache_clear():
         """ Clear cache and stats. """
@@ -188,13 +199,54 @@ def make_hone_cache_wrapper(inner_func, maxsize, maxage, finder):
         hits = misses = partials = 0
         cache.clear()
 
-    def cache_gc(fullcollect=True):
-        """ Since this can be expensive, we expose it to the user so they
-        can choose when to perform it. """
-        cache.gc(fullcollect)
+    wrapper.cache_info = cache_info
+    wrapper.cache_clear = cache_clear
+
+    return functools.update_wrapper(wrapper, inner_func)
+
+
+def ttl_cache(maxage, maxsize=128):
+    """ A time-to-live caching decorator that follows after the style of
+    lru_cache.  The `maxage` argument is time-to-live in seconds for each
+    cache result.  Any cache entries over the maxage are lazily replaced. """
+
+    def decorator(inner_func):
+        wrapper = make_ttl_cache_wrapper(inner_func, maxage, maxsize)
+        return functools.update_wrapper(wrapper, inner_func)
+    return decorator
+
+
+def make_ttl_cache_wrapper(inner_func, maxage, maxsize, typed=False):
+    """ Use the function signature as a key for a ttl mapping.  Any misses
+    will defer to the wrapped function and its result is stored for future
+    calls. """
+
+    hits = misses = 0
+    cache = TTLMapping(maxsize, maxage)
+
+    def wrapper(*args, **kwargs):
+        nonlocal hits, misses
+        key = functools._make_key(args, kwargs, typed)
+        try:
+            result = cache[key]
+        except KeyError:
+            misses += 1
+            result = cache[key] = inner_func(*args, **kwargs)
+        else:
+            hits += 1
+        return result
+
+    def cache_info():
+        """ Emulate lru_cache so this is a low touch replacement. """
+        return TTLCacheInfo(hits, misses, maxsize, len(cache), maxage)
+
+    def cache_clear():
+        """ Clear cache and stats. """
+        nonlocal hits, misses
+        hits = misses = 0
+        cache.clear()
 
     wrapper.cache_info = cache_info
     wrapper.cache_clear = cache_clear
-    wrapper.cache_gc = cache_gc
 
     return functools.update_wrapper(wrapper, inner_func)
