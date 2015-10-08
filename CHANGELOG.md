@@ -3,18 +3,18 @@
 ## [Unreleased] - unreleased
 
 ## [0.9.0] - 2015-10-08
-- The `complete` function to `Command.add_argument` takes and args
+- The `complete` function of `Command.add_argument` takes an args
   variable now, which is a best-effort `argparse.Namespace` of the
   arguments seen at that point in the completion life cycle.
 - The table calculations for filling unspec columns now takes into
   consideration the underflow.  The leftover characters from underflow
-  are redistributed to all he unspec columns evenly.
+  are redistributed to all the unspec columns evenly.
 - Refactor of `TableRenderer` to be selectable by user and pluggable by
   developers.  You can register new `TableRenderer` classes for output
   formats such as HTML, etc.
 
 ### Added
-- Made `data` module with caching decorators; `hone_cache` and `ttl_cache`
+- Created `data` module with caching decorators `hone_cache` and `ttl_cache`.
 
 
 ## [0.8.0] - 2015-10-02
