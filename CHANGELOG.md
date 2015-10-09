@@ -1,6 +1,9 @@
 # Change Log
 
 ## [Unreleased] - unreleased
+### Added
+- Color tags to VTML
+
 ### Changed
 - VTML rendering of --help output;  Emboldened some elements.
 - Better width handling of --help output.
