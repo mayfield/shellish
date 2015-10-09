@@ -15,7 +15,7 @@ def long_desc():
 
 setup(
     name='shellish',
-    version='0.9.0',
+    version='1.0.0',
     description='A framework for CLI/shell programs.',
     author='Justin Mayfield',
     author_email='tooker@gmail.com',
@@ -29,15 +29,15 @@ setup(
         'console_scripts': ['csvpretty=shellish.tools.csvpretty:csvpretty']
     },
     classifiers=[
-        'Development Status :: 3 - Alpha',
-        #'Development Status :: 4 - Beta',
+        'Development Status :: 4 - Beta',
         #'Development Status :: 5 - Production/Stable',
         #'Development Status :: 6 - Mature',
         'Intended Audience :: Developers',
         'License :: OSI Approved :: MIT License',
         'Operating System :: OS Independent',
-        'Programming Language :: Python :: 3.4',
         'Programming Language :: Python',
+        'Programming Language :: Python :: 3.4',
+        'Programming Language :: Python :: 3.5',
         'Topic :: Software Development :: Libraries',
         'Topic :: System :: Shells',
     ]
