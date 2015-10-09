@@ -41,7 +41,7 @@ class VTMLParser(html.parser.HTMLParser):
         'bgblue': 44,
         'bgmagenta': 45,
         'bgcyan': 46,
-        'bgwhite': 47
+        'bgwhite': 47,
     }
 
     def make_attr(self, *states):
@@ -82,7 +82,7 @@ class VTMLParser(html.parser.HTMLParser):
 
     def close(self):
         super().close()
-        if self.open_tags:
+        if self.open_tags or self.prestate:
             self.buf.append(self.make_attr(self.tags['normal']))
 
     def getvalue(self):
@@ -98,7 +98,8 @@ class VTML(object):
 
     __slots__ = [
         'values',
-        'visual_len'
+        'visual_len',
+        '_str_cache'
     ]
     reset_opcode = '\033[0m'
 
@@ -114,7 +115,12 @@ class VTML(object):
         return self.visual_len
 
     def __str__(self):
-        return ''.join(self.values)
+        """ Render to string and cache results. """
+        try:
+            return self._str_cache
+        except AttributeError:
+            self._str_cache = ''.join(self.values)
+            return self._str_cache
 
     def __repr__(self):
         return repr(str(self))
