@@ -1,8 +1,16 @@
 # Change Log
 
 ## [Unreleased] - unreleased
+### Changed
+- VTML rendering of --help output;  Emboldened some elements.
+- Better width handling of --help output.
+
+### Fixed
+- VTML concatenation works with str types now.
+
 
 ## [0.9.0] - 2015-10-08
+### Changed
 - The `complete` function of `Command.add_argument` takes an args
   variable now, which is a best-effort `argparse.Namespace` of the
   arguments seen at that point in the completion life cycle.

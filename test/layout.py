@@ -237,6 +237,24 @@ class VTMLStringTests(unittest.TestCase):
         a2 = vtmlrender('aaaaBBBB')
         self.assertEqual(a1, a2)
 
+    def test_add_str_type(self):
+        a = vtmlrender('aaaa')
+        b = 'BBBB'
+        ab = vtmlrender('aaaaBBBB')
+        self.assertEqual(a+b, ab)
+        self.assertEqual(str(a+b), str(ab))
+
+    def test_iadd_str_type(self):
+        a1 = vtmlrender('aaaa')
+        a1 += 'BBBB'
+        a2 = vtmlrender('aaaaBBBB')
+        self.assertEqual(a1, a2)
+
+    def test_iadd_unsupport_type(self):
+        a1 = vtmlrender('foo')
+        self.assertRaises(TypeError, lambda: a1 + 1)
+        self.assertRaises(TypeError, lambda: a1 + b'bar')
+
 
 class TableDataSupport(unittest.TestCase):
 

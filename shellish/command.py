@@ -11,7 +11,10 @@ import io
 import itertools
 import os
 import os.path
+import re
 import shlex
+import shutil
+import textwrap
 import time
 import traceback
 from . import completer, shell, layout
@@ -36,6 +39,57 @@ def parse_docstring(entity):
     return title, desc
 
 
+class ShellishParser(argparse.ArgumentParser):
+
+    def _get_formatter(self):
+        width = shutil.get_terminal_size()[0] - 2
+        return self.formatter_class(prog=self.prog, width=width)
+
+    def format_help(self):
+        formatter = self._get_formatter()
+        formatter.add_usage(self.usage, self._actions,
+                            self._mutually_exclusive_groups)
+        if '\n' in self.description:
+            desc =  self.description.split('\n\n', 1)
+            if len(desc) == 2 and '\n' not in desc[0]:
+                title, about = desc
+            else:
+                title, about = None, desc
+        else:
+            title, about = self.description, None
+        if title:
+            formatter.add_text('<b><u>%s</u></b>' % title)
+        if about:
+            formatter.add_text(about)
+        for action_group in self._action_groups:
+            formatter.start_section('<b>%s</b>' % action_group.title)
+            formatter.add_text(action_group.description)
+            formatter.add_arguments(action_group._group_actions)
+            formatter.end_section()
+        formatter.add_text(self.epilog)
+        return formatter.format_help()
+
+
+class VTMLHelpFormatter(argparse.HelpFormatter):
+
+    is_terminal = layout.is_terminal()
+    hardline = re.compile('\n\s*\n')
+
+    def vtmlrender(self, string):
+        vstr = layout.vtmlrender(string)
+        return str(vstr.plain() if not self.is_terminal else vstr)
+
+    def start_section(self, heading):
+        super().start_section(self.vtmlrender(heading))
+
+    def _fill_text(self, text, width, indent):
+        r""" Reflow text but preserve hardlines (\n\n). """
+        paragraphs = self.hardline.split(str(self.vtmlrender(text)))
+        return '\n\n'.join(textwrap.fill(x, width, initial_indent=indent,
+                                         subsequent_indent=indent)
+                           for x in paragraphs)
+
+
 class Command(object):
     """ The primary encapsulation for a shellish command.  Each command or
     subcommand should be an instance of this class.  The docstring for sub-
@@ -44,8 +98,8 @@ class Command(object):
     name = None
     title = None
     desc = None
-    ArgumentParser = argparse.ArgumentParser
-    ArgumentFormatter = argparse.RawDescriptionHelpFormatter
+    ArgumentParser = ShellishParser
+    ArgumentFormatter = VTMLHelpFormatter
     Shell = shell.Shell
 
     def setup_args(self, parser):

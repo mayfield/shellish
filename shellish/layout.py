@@ -105,7 +105,10 @@ class VTML(object):
         return str(self) < str(other)
 
     def __add__(self, item):
-        return type(self)(*(self.values + item.values))
+        if not isinstance(item, (VTML, str)):
+            raise TypeError("Invalid concatenation type: %s" % type(item))
+        values = item.values if isinstance(item, VTML) else (item,)
+        return type(self)(*(self.values + values))
 
     def is_opcode(self, item):
         """ Is the string item a vt100 op code. Empty strings return True."""
