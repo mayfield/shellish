@@ -207,6 +207,12 @@ class Table(object):
     def print_row(self, row):
         return self.print([row])
 
+    def print_footer(self, content):
+        if not self.default_renderer:
+            self.print([])
+        self.default_renderer.print_footer(content)
+
+
 
 class TableRenderer(object):
     """ A bundle of state for a particular table rendering job.  Each time a
@@ -444,9 +450,14 @@ class PlainTableRenderer(TableRenderer):
         headers = [x or '' for x in self.headers]
         header = ''.join(map(str, self.format_row(headers)))
         if self.title:
-            print(self.format_fullwidth(self.title))
+            print(self.format_fullwidth(self.title), file=self.file)
         print(header, file=self.file)
         print('-' * len(header), file=self.file)
+
+    def print_footer(self, content):
+        row = self.format_fullwidth(content)
+        print('-' * len(row), file=self.file)
+        print(row, file=self.file)
 
     def cell_format(self, value):
         return vtml.vtmlrender(value, plain=True)
@@ -459,16 +470,21 @@ class TerminalTableRenderer(TableRenderer):
     the most human friendly output when on a terminal device. """
 
     name = 'terminal'
+    title_format = '<reverse><b>%s</b></reverse>'
     header_format = '<reverse>%s</reverse>'
+    footer_format = '<reverse>%s</reverse>'
 
     def print_header(self):
         headers = [vtml.VTML(x or '') for x in self.headers]
         header = ''.join(map(str, self.format_row(headers)))
         if self.title:
             title = self.format_fullwidth(vtml.VTML(self.title))
-            vtml.vtmlprint('<reverse><b>%s</b></reverse>' % title,
-                           file=self.file)
+            vtml.vtmlprint(self.title_format % title, file=self.file)
         vtml.vtmlprint(self.header_format % header, file=self.file)
+
+    def print_footer(self, content):
+        footer = self.format_fullwidth(vtml.VTML(content))
+        vtml.vtmlprint(self.footer_format % footer, file=self.file)
 
 Table.register_renderer(TerminalTableRenderer)
 
