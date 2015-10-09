@@ -222,6 +222,11 @@ class TableRenderer(object):
     definition. """
 
     name = None
+    linebreak = '\u2014'  # solid dash
+    try:
+        linebreak.encode(sys.stdout.encoding)
+    except UnicodeEncodeError:
+        linebreak = '-'
 
     def __init__(self, colspec=None, accessors=None, table=None,
                  seed=None):
@@ -240,6 +245,7 @@ class TableRenderer(object):
         self.widths = self.calc_widths(self.prerendered)
         self.formatters = self.make_formatters()
         self.headers_drawn = not self.headers
+        self.footers_drawn = False
 
     def seed_collect(self, seed):
         """ Collect values from the seed iterator as long as we can.  If the
@@ -452,11 +458,13 @@ class PlainTableRenderer(TableRenderer):
         if self.title:
             print(self.format_fullwidth(self.title), file=self.file)
         print(header, file=self.file)
-        print('-' * len(header), file=self.file)
+        print(self.linebreak * len(header), file=self.file)
 
     def print_footer(self, content):
         row = self.format_fullwidth(content)
-        print('-' * len(row), file=self.file)
+        if not self.footers_drawn:
+            self.footers_drawn = True
+            print(self.linebreak * len(row), file=self.file)
         print(row, file=self.file)
 
     def cell_format(self, value):
@@ -470,9 +478,9 @@ class TerminalTableRenderer(TableRenderer):
     the most human friendly output when on a terminal device. """
 
     name = 'terminal'
-    title_format = '<reverse><b>%s</b></reverse>'
+    title_format = '\n<b>%s</b>\n'
     header_format = '<reverse>%s</reverse>'
-    footer_format = '<reverse>%s</reverse>'
+    footer_format = '<dim>%s</dim>'
 
     def print_header(self):
         headers = [vtml.VTML(x or '') for x in self.headers]
@@ -483,8 +491,11 @@ class TerminalTableRenderer(TableRenderer):
         vtml.vtmlprint(self.header_format % header, file=self.file)
 
     def print_footer(self, content):
-        footer = self.format_fullwidth(vtml.VTML(content))
-        vtml.vtmlprint(self.footer_format % footer, file=self.file)
+        row = self.format_fullwidth(vtml.VTML(content))
+        if not self.footers_drawn:
+            self.footers_drawn = True
+            print(self.linebreak * len(row), file=self.file)
+        vtml.vtmlprint(self.footer_format % row, file=self.file)
 
 Table.register_renderer(TerminalTableRenderer)
 
