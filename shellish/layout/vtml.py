@@ -20,25 +20,47 @@ class VTMLParser(html.parser.HTMLParser):
     """ Add some SGML style tag support for a few VT100 operations. """
 
     tags = {
-        'normal': '\033[0m',
-        'b': '\033[1m',
-        'dim': '\033[2m',
-        'u': '\033[4m',
-        'blink': '\033[5m',
-        'reverse': '\033[7m'
+        'normal': 0,
+        'b': 1,
+        'dim': 2,
+        'u': 4,
+        'blink': 5,
+        'reverse': 7,
+        'black': 30,
+        'red': 31,
+        'green': 32,
+        'yellow': 33,
+        'blue': 34,
+        'magenta': 35,
+        'cyan': 36,
+        'white': 37,
+        'bgblack': 40,
+        'bgred': 41,
+        'bggreen': 42,
+        'bgyellow': 43,
+        'bgblue': 44,
+        'bgmagenta': 45,
+        'bgcyan': 46,
+        'bgwhite': 47
     }
 
+    def make_attr(self, *states):
+        """ Generate a vt100 escape sequence for one or more states. """
+        attrs = ';'.join(map(str, states))
+        return '\033[%sm' % attrs
+
     def reset(self):
-        self.state = [self.tags['normal']]
+        self.state = []
         self.buf = []
         self.open_tags = []
+        self.prestate = []
         super().reset()
 
     def handle_starttag(self, tag, attrs):
         opcode = self.tags[tag]
         self.state.append(opcode)
+        self.prestate.append(opcode)
         self.open_tags.append(tag)
-        self.buf.append(opcode)
 
     def handle_endtag(self, tag):
         if self.open_tags[-1] != tag:
@@ -46,15 +68,22 @@ class VTMLParser(html.parser.HTMLParser):
                               self.open_tags[-1]))
         del self.open_tags[-1]
         del self.state[-1]
-        self.buf.extend(self.state)
+        if self.prestate:
+            del self.prestate[-1]
+        self.prestate.append(self.tags['normal'])
+        self.prestate.extend(self.state)
 
     def handle_data(self, data):
+        if self.prestate:
+            # Flush prestate into a single esc-attr.
+            self.buf.append(self.make_attr(*self.prestate))
+            del self.prestate[:]
         self.buf.append(data)
 
     def close(self):
         super().close()
         if self.open_tags:
-            self.buf.append(self.state[0])
+            self.buf.append(self.make_attr(self.tags['normal']))
 
     def getvalue(self):
         return VTML(*self.buf)
