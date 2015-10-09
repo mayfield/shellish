@@ -5,8 +5,6 @@ Tab completion handling.
 import argparse
 import os
 
-__public__ = []
-
 
 class ActionCompleter(object):
     """ Stateful behavior for tab completion.  Calling this instance returns

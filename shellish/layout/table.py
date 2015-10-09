@@ -1,223 +1,15 @@
 """
-Functions for displaying content with screen aware layout.
+Table layout.
 """
 
 import collections
-import functools
-import html.parser
 import itertools
 import math
 import operator
 import shutil
 import sys
 import time
-
-__public__ = ['columnize', 'tabulate', 'vtmlprint', 'vtmlrender', 'dicttree',
-              'Table']
-
-
-def is_terminal():
-    """ Return true if the device is a terminal as apposed to a pipe or
-    file.  This is usually used to determine if vt100 or unicode characters
-    should be used or not. """
-    fallback = object()
-    return shutil.get_terminal_size((fallback, 0))[0] is not fallback
-
-
-class VTMLParser(html.parser.HTMLParser):
-    """ Add some SGML style tag support for a few VT100 operations. """
-
-    tags = {
-        'normal': '\033[0m',
-        'b': '\033[1m',
-        'dim': '\033[2m',
-        'u': '\033[4m',
-        'blink': '\033[5m',
-        'reverse': '\033[7m'
-    }
-
-    def reset(self):
-        self.state = [self.tags['normal']]
-        self.buf = []
-        self.open_tags = []
-        super().reset()
-
-    def handle_starttag(self, tag, attrs):
-        opcode = self.tags[tag]
-        self.state.append(opcode)
-        self.open_tags.append(tag)
-        self.buf.append(opcode)
-
-    def handle_endtag(self, tag):
-        if self.open_tags[-1] != tag:
-            raise SyntaxError("Bad close tag: %s; Expected: %s" % (tag,
-                              self.open_tags[-1]))
-        del self.open_tags[-1]
-        del self.state[-1]
-        self.buf.extend(self.state)
-
-    def handle_data(self, data):
-        self.buf.append(data)
-
-    def close(self):
-        super().close()
-        if self.open_tags:
-            self.buf.append(self.state[0])
-
-    def getvalue(self):
-        return VTML(*self.buf)
-
-vtmlparser = VTMLParser()
-
-
-@functools.total_ordering
-class VTML(object):
-    """ A str-like object that has an adjusted length to compensate for
-    nonvisual vt100 opcodes which do not occupy space in the output. """
-
-    __slots__ = [
-        'values',
-        'visual_len'
-    ]
-    reset_opcode = '\033[0m'
-
-    def __init__(self, *values, length_hint=None):
-        self.values = values
-        if length_hint is None:
-            self.visual_len = sum(len(x) for x in values
-                                  if not self.is_opcode(x))
-        else:
-            self.visual_len = length_hint
-
-    def __len__(self):
-        return self.visual_len
-
-    def __str__(self):
-        return ''.join(self.values)
-
-    def __repr__(self):
-        return repr(str(self))
-
-    def __eq__(self, other):
-        return str(self) == str(other)
-
-    def __lt__(self, other):
-        return str(self) < str(other)
-
-    def __add__(self, item):
-        if not isinstance(item, (VTML, str)):
-            raise TypeError("Invalid concatenation type: %s" % type(item))
-        values = item.values if isinstance(item, VTML) else (item,)
-        return type(self)(*(self.values + values))
-
-    def is_opcode(self, item):
-        """ Is the string item a vt100 op code. Empty strings return True."""
-        return item and item[0] == '\033'
-
-    def text(self):
-        """ Return just the text content of this string without opcodes. """
-        return ''.join(x for x in self.values if not self.is_opcode(x))
-
-    def plain(self):
-        """ Similar to `text` but returns valid VTML instance. """
-        return type(self)(*itertools.filterfalse(self.is_opcode, self.values))
-
-    def clip(self, length, cliptext=''):
-        """ Use instead of slicing to compensate for opcode behavior. """
-        if length < 0:
-            raise ValueError("Negative clip invalid")
-        cliplen = len(cliptext)
-        if length < cliplen:
-            raise ValueError("Clip length too small: %d < %d" % (length,
-                             cliplen))
-        if length >= self.visual_len:
-            return self
-        remaining = length - cliplen
-        buf = []
-        last_opcode = ''
-        for x in self.values:
-            if not remaining:
-                break
-            elif self.is_opcode(x):
-                buf.append(x)
-                last_opcode = x
-            else:
-                fragment = x[:remaining]
-                remaining -= len(fragment)
-                buf.append(fragment)
-        if cliptext:
-            buf.append(cliptext)
-        if last_opcode and last_opcode != self.reset_opcode:
-            buf.append(self.reset_opcode)
-        return type(self)(*buf, length_hint=length)
-
-    def ljust(self, width, fillchar=' '):
-        if width <= self.visual_len:
-            return self
-        pad = (fillchar * (width - self.visual_len),)
-        return type(self)(*self.values+pad, length_hint=width)
-
-    def rjust(self, width, fillchar=' '):
-        if width <= self.visual_len:
-            return self
-        pad = (fillchar * (width - self.visual_len),)
-        return type(self)(*pad+self.values, length_hint=width)
-
-    def center(self, width, fillchar=' '):
-        """ Center strings so uneven padding always favors trailing pad.  When
-        centering clumps of text this produces better results than str.center
-        which alternates which side uneven padding occurs on. """
-        if width <= self.visual_len:
-            return self
-        padlen = width - self.visual_len
-        leftlen = padlen // 2
-        rightlen = padlen - leftlen
-        leftpad = fillchar * leftlen
-        rightpad = fillchar * rightlen
-        chained = (leftpad,) + self.values + (rightpad,)
-        return type(self)(*chained, length_hint=width)
-
-
-def vtmlrender(vtmarkup, plain=None):
-    """ Look for vt100 markup and render to vt opcodes. """
-    if isinstance(vtmarkup, VTML):
-        return vtmarkup.plain() if plain else vtmarkup
-    try:
-        vtmlparser.feed(vtmarkup)
-        vtmlparser.close()
-    except:
-        return VTML(str(vtmarkup))
-    else:
-        value = vtmlparser.getvalue()
-        return value.plain() if plain else value
-    finally:
-        vtmlparser.reset()
-
-
-def vtmlprint(*values, plain=None, **options):
-    """ Follow normal print() signature but look for vt100 codes for richer
-    output. """
-    print(*[vtmlrender(x, plain=plain) for x in values], **options)
-
-
-def columnize(items, width=None, file=sys.stdout):
-    """ Smart display width handling when showing a list of stuff. """
-    if not items:
-        return
-    if width is None:
-        width, h = shutil.get_terminal_size()
-    items = [vtmlrender(x) for x in items]
-    maxcol = max(items, key=len)
-    colsize = len(maxcol) + 2
-    cols = width // colsize
-    if cols < 2:
-        for x in items:
-            print(x, file=file)
-        return
-    lines = math.ceil(len(items) / cols)
-    for i in range(lines):
-        row = items[i:None:lines]
-        print(*[x.ljust(colsize) for x in row], sep='', file=file)
+from . import vtml
 
 
 class Table(object):
@@ -325,7 +117,7 @@ class Table(object):
         self.default_renderer = None
         clip_fallback = self.clip_default
         if not renderer:
-            if file is not sys.stdout or not is_terminal():
+            if file is not sys.stdout or not vtml.is_terminal():
                 renderer = 'plain'
                 if clip is None:
                     clip_fallback = False
@@ -453,6 +245,7 @@ class TableRenderer(object):
         maxtime = self.max_render_delay
         seed_iter = iter(seed)
         start = time.monotonic()
+
         def constrained_feed():
             for i, x in enumerate(seed_iter):
                 yield x
@@ -469,7 +262,7 @@ class TableRenderer(object):
     def cell_format(self, value):
         """ Subclasses should put any visual formatting specific to their
         rendering type here. """
-        return vtmlrender(value)
+        return vtml.vtmlrender(value)
 
     def get_overflower(self, width):
         return operator.methodcaller('clip', width, self.cliptext)
@@ -534,6 +327,7 @@ class TableRenderer(object):
         overflow = self.get_overflower(width) if self.clip else lambda x: x
         align = self.get_aligner(alignment, width)
         pad = self.get_aligner('center', width + padding)
+
         def fn(x, overflow=overflow, align=align, pad=pad):
             return pad(align(overflow(x)))
         return fn
@@ -625,7 +419,7 @@ class TableRenderer(object):
         that will be clipped when each column should be narrowed.  The actual
         score for clipping is based on percentage of total character mass,
         which is the total number of characters in the column. """
-        next_score = lambda x: (x['counts'][x['offt']] + x['chop_mass'] + \
+        next_score = lambda x: (x['counts'][x['offt']] + x['chop_mass'] +
                                 x['chop_count']) / x['total_mass']
         cur_width = lambda: sum(x['offt'] for x in colstats)
         min_width = lambda x: self.colspec[x['column']]['minwidth']
@@ -655,7 +449,7 @@ class PlainTableRenderer(TableRenderer):
         print('-' * len(header), file=self.file)
 
     def cell_format(self, value):
-        return vtmlrender(value, plain=True)
+        return vtml.vtmlrender(value, plain=True)
 
 Table.register_renderer(PlainTableRenderer)
 
@@ -668,12 +462,13 @@ class TerminalTableRenderer(TableRenderer):
     header_format = '<reverse>%s</reverse>'
 
     def print_header(self):
-        headers = [VTML(x or '') for x in self.headers]
+        headers = [vtml.VTML(x or '') for x in self.headers]
         header = ''.join(map(str, self.format_row(headers)))
         if self.title:
-            title = self.format_fullwidth(VTML(self.title))
-            vtmlprint('<reverse><b>%s</b></reverse>' % title, file=self.file)
-        vtmlprint(self.header_format % header, file=self.file)
+            title = self.format_fullwidth(vtml.VTML(self.title))
+            vtml.vtmlprint('<reverse><b>%s</b></reverse>' % title,
+                           file=self.file)
+        vtml.vtmlprint(self.header_format % header, file=self.file)
 
 Table.register_renderer(TerminalTableRenderer)
 
@@ -695,98 +490,3 @@ def tabulate(data, header=True, **table_options):
     if not empty:
         t.print(data)
     return t
-
-
-class TreeNode(object):
-
-    def __init__(self, value, children=None, label=None):
-        self.value = value
-        self.label = label
-        self.children = children if children is not None else []
-
-    def __lt__(self, item):
-        return self.value < item.value
-
-
-class Tree(object):
-    """ Construct a visual tree from a data source. """
-
-    tree_L = '└── '
-    tree_T = '├── '
-    tree_vertspace = '│   '
-    try:
-        tree_L.encode(sys.stdout.encoding)
-    except UnicodeEncodeError:
-        tree_L = '\-- '
-        tree_T = '+-- '
-        tree_vertspace = '|   '
-
-    def __init__(self, formatter=None, sort_key=None, plain=None):
-        self.formatter = formatter or self.default_formatter
-        self.sort_key = sort_key
-        if plain is None:
-            plain = not is_terminal()
-        self.plain = plain
-
-    def default_formatter(self, node):
-        if node.label is not None:
-            return '%s: <b>%s</b>' % (node.value, node.label)
-        else:
-            return str(node.value)
-
-    def render(self, nodes, prefix=None):
-        node_list = list(nodes)
-        end = len(node_list) - 1
-        if self.sort_key is not False:
-            node_list.sort(key=self.sort_key)
-        for i, x in enumerate(node_list):
-            if prefix is not None:
-                line = [prefix]
-                if end == i:
-                    line.append(self.tree_L)
-                else:
-                    line.append(self.tree_T)
-            else:
-                line = ['']
-            yield vtmlrender(''.join(line + [self.formatter(x)]),
-                             plain=self.plain)
-            if x.children:
-                if prefix is not None:
-                    line[-1] = '    ' if end == i else self.tree_vertspace
-                yield from self.render(x.children, prefix=''.join(line))
-
-
-def dicttree(data, render_only=False, **options):
-    """ Render a tree structure based on a well formed dictionary. The keys
-    should be titles and the values are children of the node or None if it's
-    an empty leaf node;  Primitives are valid leaf node labels too.  E.g.
-
-        sample = {
-            "Leaf 1": None,
-            "Leaf 2": "I have a label on me",
-            "Branch A": {
-                "Sub Leaf 1 with float label": 3.14,
-                "Sub Branch": {
-                    "Deep Leaf": None
-                }
-            },
-            "Branch B": {
-                "Sub Leaf 2": None
-            }
-        }
-    """
-    def crawl(obj):
-        for key, value in obj.items():
-            if hasattr(value, 'items'):
-                yield TreeNode(key, children=crawl(value))
-            elif value is not None:
-                yield TreeNode(key, label=value)
-            else:
-                yield TreeNode(key)
-    t = Tree(**options)
-    render_gen = t.render(crawl(data))
-    if render_only:
-        return render_gen
-    else:
-        for x in render_gen:
-            print(x)

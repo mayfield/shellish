@@ -19,8 +19,6 @@ import time
 import traceback
 from . import completer, shell, layout
 
-__public__ = ['Command', 'autocommand', 'SystemCompletionSetup']
-
 
 def parse_docstring(entity):
     """ Return sanitized docstring from an entity.  The first line of the

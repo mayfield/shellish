@@ -7,8 +7,6 @@ import collections.abc
 import functools
 import time
 
-__public__ = ['hone_cache', 'ttl_cache', 'TTLMapping']
-
 hone_cache_finders = {}
 TTLCacheInfo = collections.namedtuple("TTLCacheInfo", ('hits', 'misses',
                                       'maxsize', 'currsize', 'maxage'))

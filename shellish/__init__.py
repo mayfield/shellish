@@ -1,10 +1,5 @@
-"""
-Public interface.
-"""
-
-import importlib
-
-for x in ['shell', 'completer', 'command', 'layout', 'data']:
-    module = importlib.import_module('.%s' % x, 'shellish')
-    for sym in module.__public__:
-        globals()[sym] = getattr(module, sym)
+from .shell import *
+from .completer import *
+from .command import *
+from .layout import *
+from .data import *

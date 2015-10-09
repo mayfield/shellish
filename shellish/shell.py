@@ -13,8 +13,6 @@ import sys
 import traceback
 from . import layout
 
-__public__ = ['Shell']
-
 
 class ShellQuit(Exception):
     pass
