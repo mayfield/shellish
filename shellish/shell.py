@@ -5,6 +5,7 @@ The interactive portions of shellish.
 import ast
 import cmd
 import configparser
+import functools
 import os.path
 import pdb
 import readline
@@ -40,10 +41,15 @@ class Shell(cmd.Cmd):
         raw_prompt = self.config['ui']['prompt_format']
         self.prompt_format = ast.literal_eval("'%s '" % raw_prompt)
         for x in root_command.subcommands:
-            setattr(self, 'do_%s' % x.name, self.wrap_command_invoke(x))
-            setattr(self, 'help_%s' % x.name, x.argparser.print_help)
-            setattr(self, 'complete_%s' % x.name, x.complete_wrap)
+            self.attach_command(x)
         super().__init__()
+
+    def attach_command(self, command):
+        setattr(self, 'do_%s' % command.name,
+                self.wrap_command_invoke(command))
+        setattr(self, 'help_%s' % command.name,
+                command.argparser.print_help)
+        setattr(self, 'complete_%s' % command.name, command.complete_wrap)
 
     @property
     def prompt(self):
@@ -87,6 +93,8 @@ class Shell(cmd.Cmd):
         return config
 
     def wrap_command_invoke(self, cmd):
+
+        @functools.wraps(cmd)
         def wrap(arg):
             args = cmd.argparser.parse_args(shlex.split(arg))
             cmd(args)

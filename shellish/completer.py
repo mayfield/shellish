@@ -35,7 +35,7 @@ class ActionCompleter(object):
 
     def __str__(self):
         return '<%s key:%s action:(%s)>' % (type(self).__name__, self.key,
-               self.about_action())
+                                            self.about_action())
 
     __repr__ = __str__
 

@@ -48,7 +48,7 @@ class ShellishParser(argparse.ArgumentParser):
         formatter.add_usage(self.usage, self._actions,
                             self._mutually_exclusive_groups)
         if '\n' in self.description:
-            desc =  self.description.split('\n\n', 1)
+            desc = self.description.split('\n\n', 1)
             if len(desc) == 2 and '\n' not in desc[0]:
                 title, about = desc
             else:
@@ -117,7 +117,8 @@ class Command(object):
         self.argparser.print_usage()
         raise SystemExit(1)
 
-    def __init__(self, parent=None, title=None, desc=None, name=None, **context):
+    def __init__(self, parent=None, title=None, desc=None, name=None,
+                 **context):
         if name:
             self.name = name
         if type(self) is not Command:

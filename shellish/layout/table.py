@@ -500,7 +500,7 @@ class TerminalTableRenderer(TableRenderer):
 Table.register_renderer(TerminalTableRenderer)
 
 
-def tabulate(data, header=True, **table_options):
+def tabulate(data, header=True, accessors=None, **table_options):
     """ Shortcut function to produce tabular output of data without the
     need to create and configure a Table instance directly. The function
     does however return a table instance when it's done for any further use
@@ -513,7 +513,15 @@ def tabulate(data, header=True, **table_options):
             headers = next(data)
         except StopIteration:
             empty = True
-    t = Table(headers=headers, **table_options)
+        else:
+            if hasattr(headers, 'items') and accessors is None:
+                # dict mode
+                data = itertools.chain([headers], data)
+                accessors = list(headers)
+                headers = [x.capitalize().replace('_', ' ')
+                           for x in accessors]
+            print(headers, accessors)
+    t = Table(headers=headers, accessors=accessors, **table_options)
     if not empty:
         t.print(data)
     return t

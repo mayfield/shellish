@@ -375,49 +375,7 @@ class TableUsagePatterns(unittest.TestCase):
         t = self.table(headers=['foo'], width=3)
         t.print([['one']])
         t.print([['two']])
-        self.assertEquals(self.get_lines(), ['foo', '---', 'one', 'two'])
-
-
-class TableCalcs(unittest.TestCase):
-
-    def test_unflex_spec_underflow(self):
-        widths = calc_table(*[1/26] * 26)
-        self.assertLess(statistics.variance(widths), 1)
-        self.assertEqual(sum(widths), 78)  # uses floor() so it's lossy
-
-    def test_unflex_unspec_underflow(self):
-        widths = calc_table(*[None] * 26)
-        self.assertLess(statistics.variance(widths), 1)
-        self.assertEqual(sum(widths), 100)
-
-    def test_equal_flex_underflow_all_fits(self):
-        widths = calc_table(*[None] * 26, flex=True, data=[['a'] * 26])
-        self.assertLess(statistics.variance(widths), 1)
-        self.assertEqual(sum(widths), 100)
-
-    def test_uniform_dist(self):
-        dist = TableRenderer.uniform_dist
-        for i in range(1, 101):
-            for ii in range(151):
-                d = dist(None, i, ii)
-                self.assertEqual(sum(d), ii, (i, ii, d))
-
-
-class TableUsagePatterns(unittest.TestCase):
-
-    def table(self, *args, column_padding=0, **kwargs):
-        self.output = io.StringIO()
-        return Table(*args, file=self.output, column_padding=column_padding,
-                     **kwargs)
-
-    def get_lines(self):
-        return self.output.getvalue().splitlines()
-
-    def test_headers_once(self):
-        t = self.table(headers=['foo'], width=3)
-        t.print([['one']])
-        t.print([['two']])
-        self.assertEquals(self.get_lines(), ['foo', '---', 'one', 'two'])
+        self.assertEquals(self.get_lines(), ['foo', ('\u2014' * 3), 'one', 'two'])
 
 
 class TableCalcs(unittest.TestCase):
