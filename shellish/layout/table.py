@@ -520,7 +520,6 @@ def tabulate(data, header=True, accessors=None, **table_options):
                 accessors = list(headers)
                 headers = [x.capitalize().replace('_', ' ')
                            for x in accessors]
-            print(headers, accessors)
     t = Table(headers=headers, accessors=accessors, **table_options)
     if not empty:
         t.print(data)
