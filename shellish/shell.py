@@ -28,7 +28,7 @@ class Shell(cmd.Cmd):
     config_dir = os.path.expanduser('~')
     intro = 'Type "help" or "?" to list commands and "exit" to quit.'
     completer_delim_includes = frozenset()
-    completer_delim_excludes = frozenset('-+@:')
+    completer_delim_excludes = frozenset('-+@:/~*')
     exception_verbosity = 'traceback'
     pad_completion = True
 

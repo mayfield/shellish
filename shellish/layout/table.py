@@ -213,7 +213,6 @@ class Table(object):
         self.default_renderer.print_footer(content)
 
 
-
 class TableRenderer(object):
     """ A bundle of state for a particular table rendering job.  Each time a
     table is to be printed to a file or the screen a new instance of this

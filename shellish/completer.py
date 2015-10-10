@@ -17,6 +17,7 @@ class ActionCompleter(object):
         self.key = None
         self.choices = None
         self.consumed = 0
+        self.calling_command = None  # Only set during completion.
         self.subparsers = None
         if action.choices and hasattr(action.choices, 'items'):
             self.subparsers = action.choices.copy()
@@ -29,6 +30,8 @@ class ActionCompleter(object):
             self.choices = action.choices
         elif getattr(action, 'complete', None):
             self.completer = self.proxy_complete(action.complete)
+        elif isinstance(action.type, argparse.FileType):
+            self.completer = self.file_complete
         else:
             self.completer = self.hint_complete
         self.parse_nargs(action.nargs)
@@ -41,7 +44,11 @@ class ActionCompleter(object):
 
     def __call__(self, command, prefix, args):
         args = self.silent_parse_args(command, args)
-        return self.completer(prefix, args)
+        self.calling_command = command
+        try:
+            return self.completer(prefix, args)
+        finally:
+            self.calling_command = None
 
     def silent_parse_args(self, command, args):
         """ Silently attempt to parse args.  If there is a failure then we
@@ -107,6 +114,32 @@ class ActionCompleter(object):
 
     def choice_complete(self, prefix, args):
         return frozenset(x for x in self.choices if x.startswith(prefix))
+
+    def file_complete(self, prefix, args):
+        """ Look in the local filesystem for valid file choices. """
+        path = os.path.expanduser(prefix)
+        dirname, name = os.path.split(path)
+        if not dirname:
+            dirname = '.'
+        try:
+            scanner = os.scandir(dirname)
+        except FileNotFoundError:
+            return frozenset()
+        choices = []
+        shell = self.calling_command.shell
+        for f in scanner:
+            try:
+                if (not name or f.name.startswith(name)) and \
+                   not f.name.startswith('.'):
+                    choices.append(f)
+            except PermissionError:
+                pass
+        prevent_pad = shell.pad_completion and len(choices) == 1 and \
+                      choices[0].is_dir()
+        names = [os.path.join(dirname, x.name) for x in choices]
+        if prevent_pad:
+            names.append(names[0] + '/')
+        return frozenset(names)
 
     def hint_complete(self, prefix, args):
         """ For arguments that don't have complete functions or .choices we
