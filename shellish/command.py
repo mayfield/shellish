@@ -260,6 +260,11 @@ class Command(object):
                                   **filetype_options or {})
         return self.add_argument(*args, type=type_, **kwargs)
 
+    def add_table_group(self, *args, parser=None, **kwargs):
+        if parser is None:
+            parser = self.argparser
+        return layout.Table.add_format_group(parser, *args, **kwargs)
+
     def create_argparser(self):
         """ Factory for arg parser.  Can be overridden as long as it returns
         an ArgParser compatible instance. """

@@ -1,4 +1,5 @@
 
+import argparse
 import io
 import statistics
 import unittest
@@ -375,7 +376,8 @@ class TableUsagePatterns(unittest.TestCase):
         t = self.table(headers=['foo'], width=3)
         t.print([['one']])
         t.print([['two']])
-        self.assertEquals(self.get_lines(), ['foo', ('\u2014' * 3), 'one', 'two'])
+        self.assertEqual(self.get_lines(), ['foo', ('\u2014' * 3), 'one',
+                                            'two'])
 
 
 class TableCalcs(unittest.TestCase):
@@ -401,3 +403,35 @@ class TableCalcs(unittest.TestCase):
             for ii in range(151):
                 d = dist(None, i, ii)
                 self.assertEqual(sum(d), ii, (i, ii, d))
+
+
+class TableArgGroup(unittest.TestCase):
+
+    def test_table_group(self):
+        Table.add_format_group(argparse.ArgumentParser())
+
+
+class TableClosingContext(unittest.TestCase):
+
+    def test_Table_context_noaction(self):
+        closed = False
+        class TestTable(Table):
+            def close(self, **kwargs):
+                super().close(*kwargs)
+                nonlocal closed
+                closed = True
+        with TestTable():
+            pass
+        self.assertTrue(closed)
+
+    def test_Table_context_exc(self):
+        class TestExc(Exception): pass
+        class TestTable(Table):
+            def close(this, exception=None):
+                self.assertIs(exception[0], TestExc)
+                super().close(exception)
+        try:
+            with TestTable():
+                raise TestExc()
+        except TestExc:
+            pass

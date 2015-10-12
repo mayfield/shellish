@@ -3,7 +3,10 @@ Table layout.
 """
 
 import collections
+import csv
+import inspect
 import itertools
+import json
 import math
 import operator
 import shutil
@@ -19,13 +22,16 @@ class Table(object):
     screen without overflowing;  However a table instance can be configured
     to overflow if desired (clip=False).  For detailed help on using this
     class, see the __init__ method, or use the helper function tabulate() for
-    simple use cases. """
+    simple use cases.
+
+    This class is also a context manager which is applicable for printing
+    streams of data or when combined with output formats that require closing
+    tags. """
 
     column_padding = 2
     column_align = 'left'  # {left,right,center}
     title_align = 'left'
     cliptext = '\u2026'  # ... as single char
-    clip_default = True
     try:
         cliptext.encode(sys.stdout.encoding)
     except UnicodeEncodeError:
@@ -115,16 +121,13 @@ class Table(object):
         self.flex = flex
         self.file = file if file is not None else sys.stdout
         self.default_renderer = None
-        clip_fallback = self.clip_default
         if not renderer:
-            if file is not sys.stdout or not vtml.is_terminal():
+            if self.file is not sys.stdout or not vtml.is_terminal():
                 renderer = 'plain'
-                if clip is None:
-                    clip_fallback = False
             else:
                 renderer = 'terminal'
         self.renderer_class = self.lookup_renderer(renderer)
-        self.clip = clip if clip is not None else clip_fallback
+        self.clip = clip
         if cliptext is not None:
             self.cliptext = cliptext
         if column_padding is not None:
@@ -136,6 +139,16 @@ class Table(object):
         if title_align is not None:
             self.title_align = title_align
 
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        return self.close(exception=exc)
+
+    def close(self, exception=None):
+        if self.default_renderer:
+            self.default_renderer.close(exception=exception)
+
     def lookup_renderer(self, name):
         return self.renderer_types[name]
 
@@ -146,6 +159,24 @@ class Table(object):
     @classmethod
     def unregister_renderer(cls, renderer):
         del cls.renderer_types[renderer.name]
+
+    @classmethod
+    def add_format_group(cls, parser, dest='table_format', default=None,
+                         title=None, desc=None, excludes=None):
+        """ Return an argparse group with the available renderer options for a
+        table.  Ie. --json, --csv, --plain, etc. """
+        title = 'table formatting options' if title is None else title
+        desc = 'Selection of output formats for table display.  The ' \
+               'default behavior is to detect the output device\'s ' \
+               'capabilities.' if desc is None else desc
+        group = parser.add_argument_group(title, description=desc)
+        excludes = excludes or set()
+        for name, renderer in sorted(cls.renderer_types.items()):
+            if name in excludes:
+                continue
+            group.add_argument('--%s' % name, dest=dest, action='store_const',
+                               const=name, help=inspect.getdoc(renderer))
+        return group
 
     def make_accessors(self, columns):
         if not self.accessors_def:
@@ -221,6 +252,7 @@ class TableRenderer(object):
     definition. """
 
     name = None
+    clip_default = False
     linebreak = '\u2014'  # solid dash
     try:
         linebreak.encode(sys.stdout.encoding)
@@ -245,6 +277,15 @@ class TableRenderer(object):
         self.formatters = self.make_formatters()
         self.headers_drawn = not self.headers
         self.footers_drawn = False
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        self.close(exception=exc)
+
+    def close(self, exception=None):
+        pass
 
     def seed_collect(self, seed):
         """ Collect values from the seed iterator as long as we can.  If the
@@ -297,6 +338,8 @@ class TableRenderer(object):
         if not self.width:
             self.width = shutil.get_terminal_size()[0] \
                          if self.file is sys.stdout else 80
+        if self.clip is None:
+            self.clip = self.clip_default
         self.headers = table.headers and table.headers[:]
 
     def render_data(self, data):
@@ -323,7 +366,7 @@ class TableRenderer(object):
         return fmt(value)
 
     def print_rendered(self, rendered_values):
-        """ Format and print the pre-rendered data. """
+        """ Format and print the pre-rendered data to the output device. """
         if not self.headers_drawn:
             self.print_header()
             self.headers_drawn = True
@@ -453,15 +496,15 @@ class PlainTableRenderer(TableRenderer):
     name = 'plain'
 
     def print_header(self):
-        headers = [x or '' for x in self.headers]
+        headers = [vtml.VTML(x or '') for x in self.headers]
         header = ''.join(map(str, self.format_row(headers)))
         if self.title:
-            print(self.format_fullwidth(self.title), file=self.file)
+            print(self.format_fullwidth(vtml.VTML(self.title)), file=self.file)
         print(header, file=self.file)
         print(self.linebreak * len(header), file=self.file)
 
     def print_footer(self, content):
-        row = self.format_fullwidth(content)
+        row = self.format_fullwidth(vtml.VTML(content))
         if not self.footers_drawn:
             self.footers_drawn = True
             print(self.linebreak * len(row), file=self.file)
@@ -478,6 +521,7 @@ class TerminalTableRenderer(TableRenderer):
     the most human friendly output when on a terminal device. """
 
     name = 'terminal'
+    clip_default = True
     title_format = '\n<b>%s</b>\n'
     header_format = '<reverse>%s</reverse>'
     footer_format = '<dim>%s</dim>'
@@ -498,6 +542,70 @@ class TerminalTableRenderer(TableRenderer):
         vtml.vtmlprint(self.footer_format % row, file=self.file)
 
 Table.register_renderer(TerminalTableRenderer)
+
+
+class JSONTableRenderer(TableRenderer):
+    """ Render JSON output of the table data. """
+
+    name = 'json'
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.buf = {
+            'title': None,
+            'headers': [],
+            'rows': [],
+            'footers': []
+        }
+
+    def cell_format(self, value):
+        return vtml.vtmlrender(value).text()
+
+    def print_header(self):
+        self.buf['title'] = self.title
+        self.buf['headers'][:] = self.headers
+
+    def print_footer(self, content):
+        self.buf['footers'].append(content)
+
+    def print_rendered(self, rendered_values):
+        if not self.headers_drawn:
+            self.print_header()
+            self.headers_drawn = True
+        self.buf['rows'].extend(rendered_values)
+
+    def close(self, exception=None):
+        if exception and any(exception):
+            return
+        print(json.dumps(self.buf, indent=4, sort_keys=True), file=self.file)
+
+Table.register_renderer(JSONTableRenderer)
+
+
+class CSVTableRenderer(TableRenderer):
+    """ Render CSV (comma delimited) output of the table data. """
+
+    name = 'csv'
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.writer = None
+
+    def cell_format(self, value):
+        return vtml.vtmlrender(value).text()
+
+    def print_footer(self, content):
+        """ CSV does not support footers. """
+        pass
+
+    def print_rendered(self, rendered_values):
+        if not self.headers_drawn:
+            self.writer = csv.writer(self.file)
+            self.writer.writerow(self.headers)
+            self.headers_drawn = True
+        self.writer.writerows(rendered_values)
+
+Table.register_renderer(CSVTableRenderer)
 
 
 def tabulate(data, header=True, accessors=None, **table_options):

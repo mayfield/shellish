@@ -3,6 +3,8 @@
 ## [Unreleased] - unreleased
 ### Added
 - Color tags to VTML
+- Argument parsing group for table formats.
+- Table is a context manager that calls close when exited.
 
 ### Changed
 - VTML rendering of --help output;  Emboldened some elements.
@@ -10,6 +12,7 @@
 
 ### Fixed
 - VTML concatenation works with str types now.
+- Plain renderer does not clip when shown on terminal.
 
 
 ## [0.9.0] - 2015-10-08
