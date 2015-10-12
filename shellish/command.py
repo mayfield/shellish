@@ -21,14 +21,17 @@ import traceback
 from . import completer, shell, layout
 
 
-# XXX This is not likely to be sufficient since the codecs module replaces
-# sys.stdout with a special converter for latin to utf8 and I'm not sure how
-# to just adjust the line buffering settings without replacing the entire
-# wrapper.  It's also probably just a bad idea but line buffering always
-# makes more sense for CLI activity.
-if not sys.stdout.line_buffering:
-    sys.stdout = open(sys.stdout.fileno(), sys.stdout.mode,
-                      buffering=1, errors=sys.stdout.errors)
+def linebuffered_stdout():
+    """ Always line buffer stdout so pipes and redirects are CLI friendly. """
+    if sys.stdout.line_buffering:
+        return sys.stdout
+    orig = sys.stdout
+    new = type(orig)(orig.buffer, encoding=orig.encoding, errors=orig.errors,
+                     line_buffering=True)
+    new.mode = orig.mode
+    return new
+
+sys.stdout = linebuffered_stdout()
 
 
 def parse_docstring(entity):
@@ -249,10 +252,11 @@ class Command(object):
             action.complete = complete
         return action
 
-    def add_file_argument(self, *args, mode='r', filetype_options=None,
-                          **kwargs):
+    def add_file_argument(self, *args, mode='r', buffering=1,
+                          filetype_options=None, **kwargs):
         """ Shortcut for adding argparse.FileType based arguments. """
-        type_ = argparse.FileType(mode=mode, **filetype_options or {})
+        type_ = argparse.FileType(mode=mode, bufsize=buffering,
+                                  **filetype_options or {})
         return self.add_argument(*args, type=type_, **kwargs)
 
     def create_argparser(self):

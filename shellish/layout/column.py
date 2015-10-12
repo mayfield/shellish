@@ -13,7 +13,7 @@ def columnize(items, width=None, file=sys.stdout):
     if not items:
         return
     if width is None:
-        width, h = shutil.get_terminal_size()
+        width = shutil.get_terminal_size()[0] if file is sys.stdout else 80
     items = [vtml.vtmlrender(x) for x in items]
     maxcol = max(items, key=len)
     colsize = len(maxcol) + 2

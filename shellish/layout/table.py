@@ -295,7 +295,8 @@ class TableRenderer(object):
                   'min_render_prefill'):
             setattr(self, x, getattr(table, x))
         if not self.width:
-            self.width = shutil.get_terminal_size()[0]
+            self.width = shutil.get_terminal_size()[0] \
+                         if self.file is sys.stdout else 80
         self.headers = table.headers and table.headers[:]
 
     def render_data(self, data):
