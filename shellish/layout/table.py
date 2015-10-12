@@ -41,7 +41,7 @@ class Table(object):
     max_render_delay = 2
 
     def __init__(self, columns=None, headers=None, accessors=None, width=None,
-                 clip=None, flex=True, file=sys.stdout, cliptext=None,
+                 clip=None, flex=True, file=None, cliptext=None,
                  column_minwidth=None, column_padding=None, column_align=None,
                  renderer=None, title=None, title_align=None):
         """ The .columns should be a list of width specs or a style dict.
@@ -113,7 +113,7 @@ class Table(object):
         self.headers = headers
         self.width = width
         self.flex = flex
-        self.file = file
+        self.file = file if file is not None else sys.stdout
         self.default_renderer = None
         clip_fallback = self.clip_default
         if not renderer:
