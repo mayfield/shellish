@@ -166,12 +166,13 @@ class Command(object):
             try:
                 command = commands[self.depth]
             except IndexError:
-                if self.default_subcommand:
-                    parser = self.default_subcommand.argparser
-                    parser.parse_args([], namespace=args)
-                    return self(args)  # retry
+                pass
             else:
                 return command(args)
+            if self.default_subcommand:
+                parser = self.default_subcommand.argparser
+                parser.parse_args([], namespace=args)
+                return self(args)  # retry
         self.prerun(args)
         try:
             result = self.run(args)
