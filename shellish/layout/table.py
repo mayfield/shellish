@@ -634,7 +634,10 @@ class MarkdownTableRenderer(PlainTableRenderer):
 
     def capture_table_state(self, table):
         super().capture_table_state(table)
-        self.width = 1  # Always compress the output.
+        # Reserve initial space based on headers and min MD reqs.
+        self.width = sum(max(len(h) + c['padding'], 3)
+                         for h, c in  zip(self.headers, self.colspec))
+        self.width += 2  # borders
 
     def mdprint(self, *columns):
         print('|%s|' % '|'.join(map(str, columns)), file=self.file)
