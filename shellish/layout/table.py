@@ -361,19 +361,21 @@ class TableRenderer(object):
     def format_fullwidth(self, value):
         """ Return a full width column. Note that the padding is inherited
         from the first cell which inherits from column_padding. """
+        if not isinstance(value, vtml.VTML):
+            value = vtml.VTML(value or '')
         pad = self.colspec[0]['padding']
         fmt = self.make_formatter(self.width - pad, pad, self.title_align)
         return fmt(value)
 
     def print_rendered(self, rendered_values):
         """ Format and print the pre-rendered data to the output device. """
-        if not self.headers_drawn:
-            self.print_header()
-            self.headers_drawn = True
         for row in rendered_values:
             print(*self.format_row(row), sep='', file=self.file)
 
     def print(self, data):
+        if not self.headers_drawn:
+            self.print_header()
+            self.headers_drawn = True
         self.print_rendered(self.render_data(data))
 
     def make_formatter(self, width, padding, alignment):
@@ -395,7 +397,7 @@ class TableRenderer(object):
 
     def uniform_dist(self, spread, total):
         """ Produce a uniform distribution of `total` across a list of
-        `spread` size. The result is a non-random and uniform. """
+        `spread` size. The result is non-random and uniform. """
         fraction, fixed_increment = math.modf(total / spread)
         fixed_increment = int(fixed_increment)
         balance = 0
@@ -499,12 +501,12 @@ class PlainTableRenderer(TableRenderer):
         headers = [vtml.VTML(x or '') for x in self.headers]
         header = ''.join(map(str, self.format_row(headers)))
         if self.title:
-            print(self.format_fullwidth(vtml.VTML(self.title)), file=self.file)
+            print(self.format_fullwidth(self.title), file=self.file)
         print(header, file=self.file)
         print(self.linebreak * len(header), file=self.file)
 
     def print_footer(self, content):
-        row = self.format_fullwidth(vtml.VTML(content))
+        row = self.format_fullwidth(content)
         if not self.footers_drawn:
             self.footers_drawn = True
             print(self.linebreak * len(row), file=self.file)
@@ -530,12 +532,12 @@ class TerminalTableRenderer(TableRenderer):
         headers = [vtml.VTML(x or '') for x in self.headers]
         header = ''.join(map(str, self.format_row(headers)))
         if self.title:
-            title = self.format_fullwidth(vtml.VTML(self.title))
+            title = self.format_fullwidth(self.title)
             vtml.vtmlprint(self.title_format % title, file=self.file)
         vtml.vtmlprint(self.header_format % header, file=self.file)
 
     def print_footer(self, content):
-        row = self.format_fullwidth(vtml.VTML(content))
+        row = self.format_fullwidth(content)
         if not self.footers_drawn:
             self.footers_drawn = True
             print(self.linebreak * len(row), file=self.file)
@@ -545,34 +547,42 @@ Table.register_renderer(TerminalTableRenderer)
 
 
 class JSONTableRenderer(TableRenderer):
-    """ Render JSON output of the table data. """
+    """ Generate JSON output of the table. """
 
     name = 'json'
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self.seen_keys = set()
+        self.keys = []
         self.buf = {
             'title': None,
-            'headers': [],
             'rows': [],
             'footers': []
         }
+
+    def make_key(self, value):
+        """ Make camelCase variant of value. """
+        parts = value.lower().split()
+        key = parts[0] + ''.join(map(str.capitalize, parts[1:]))
+        if key in self.seen_keys:
+            i = 1
+            while '%s%d' % (key, i) in self.seen_keys:
+                i += 1
+            key = '%s%d' % (key, i)
+        self.seen_keys.add(key)
+        return key
 
     def cell_format(self, value):
         return vtml.vtmlrender(value).text()
 
     def print_header(self):
         self.buf['title'] = self.title
-        self.buf['headers'][:] = self.headers
-
-    def print_footer(self, content):
-        self.buf['footers'].append(content)
+        self.keys[:] = map(self.make_key, self.headers)
 
     def print_rendered(self, rendered_values):
-        if not self.headers_drawn:
-            self.print_header()
-            self.headers_drawn = True
-        self.buf['rows'].extend(rendered_values)
+        self.buf['rows'].extend(dict(zip(self.keys, x))
+                                for x in rendered_values)
 
     def close(self, exception=None):
         if exception and any(exception):
@@ -583,7 +593,7 @@ Table.register_renderer(JSONTableRenderer)
 
 
 class CSVTableRenderer(TableRenderer):
-    """ Render CSV (comma delimited) output of the table data. """
+    """ Generate CSV (comma delimited) output of the table. """
 
     name = 'csv'
 
@@ -598,14 +608,44 @@ class CSVTableRenderer(TableRenderer):
         """ CSV does not support footers. """
         pass
 
+    def print_header(self):
+        self.writer = csv.writer(self.file)
+        self.writer.writerow(self.headers)
+
     def print_rendered(self, rendered_values):
-        if not self.headers_drawn:
-            self.writer = csv.writer(self.file)
-            self.writer.writerow(self.headers)
-            self.headers_drawn = True
         self.writer.writerows(rendered_values)
 
 Table.register_renderer(CSVTableRenderer)
+
+
+class MarkdownTableRenderer(PlainTableRenderer):
+    """ Render Markdown text format output of the table. """
+
+    name = 'md'
+
+    def capture_table_state(self, table):
+        super().capture_table_state(table)
+        self.width = 1  # Always compress the output.
+
+    def mdprint(self, *columns):
+        print('|%s|' % '|'.join(map(str, columns)), file=self.file)
+
+    def print_header(self):
+        if self.title:
+            print("**%s**" % self.title, file=self.file)
+        headers = [vtml.VTML(x or '') for x in self.headers]
+        self.mdprint(*map(str, self.format_row(headers)))
+        self.mdprint(*("-" * (width + colspec['padding'])
+                     for width, colspec in zip(self.widths, self.colspec)))
+
+    def print_footer(self, content):
+        print("_%s_" % content, file=self.file)
+
+    def print_rendered(self, rendered_values):
+        for row in rendered_values:
+            self.mdprint(*self.format_row(row))
+
+Table.register_renderer(MarkdownTableRenderer)
 
 
 def tabulate(data, header=True, accessors=None, **table_options):
