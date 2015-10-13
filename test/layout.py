@@ -3,7 +3,8 @@ import argparse
 import io
 import statistics
 import unittest
-from shellish.layout import Table, TableRenderer, vtmlrender
+from shellish.layout import Table, TableRenderer, vtmlrender, tabulate, \
+                            RowsNotFound
 
 
 def calc_table(*columns, width=100, data=None, flex=False):
@@ -294,7 +295,7 @@ class TableDataSupport(unittest.TestCase):
 
     def test_columns_from_none_is_error(self):
         output, t = self.table()
-        self.assertRaises(ValueError, t.make_renderer)
+        self.assertRaises(RowsNotFound, t.make_renderer)
 
     def test_columns_width_spec_only(self):
         output, t = self.table(columns=[None, None, None])
@@ -313,6 +314,69 @@ class TableDataSupport(unittest.TestCase):
         output, t = self.table([None])
         t.print([])
         self.assertFalse(output())
+
+    def test_zero_columns(self):
+        output, t = self.table([])
+        self.assertRaises(RowsNotFound, t.print, [])
+        self.assertRaises(RowsNotFound, t.print, [[], []])
+        self.assertRaises(RowsNotFound, t.print, [[], [], []])
+        output, t = self.table([])
+        self.assertRaises(RowsNotFound, t.print, [[], [], []])
+        self.assertRaises(RowsNotFound, t.print, [[], []])
+        self.assertRaises(RowsNotFound, t.print, [[]])
+        self.assertRaises(RowsNotFound, t.print, [])
+
+    def test_dict_tabulate(self):
+        out = io.StringIO()
+        t = tabulate([{
+            "this_is_a_snake": "foo"
+        }], file=out)
+        self.assertEqual(t.headers[0], 'This Is A Snake')
+        self.assertIn('foo', out.getvalue())
+
+    def test_tabulate_with_headers_empty(self):
+        out = io.StringIO()
+        tabulate([], headers=['one'], file=out)
+        self.assertIn('one', out.getvalue())
+
+    def test_tabulate_with_headers(self):
+        out = io.StringIO()
+        tabulate([['ONE']], headers=['one'], file=out)
+        self.assertIn('one', out.getvalue())
+        self.assertIn('ONE', out.getvalue())
+
+    def test_empty_iter_tabulate(self):
+        tabulate(iter([['header-only']]))
+
+    def test_empty_iter_tabulate_headerarg(self):
+        tabulate(iter([]), header=False)
+
+    def test_empty_list_tabulate(self):
+        tabulate([['header-only']])
+
+    def test_empty_list_tabulate_headerarg(self):
+        tabulate([], header=False)
+
+    def test_empty_list_print(self):
+        tabulate([], header=False)
+
+    def test_generator_tabulate_headerless(self):
+        def g():
+            for x in range(2):
+                yield [x]
+        out = io.StringIO()
+        tabulate(g(), header=False, file=out)
+        self.assertIn('1', out.getvalue())
+
+    def test_empty_add_footers_exc(self):
+        t = Table()
+        self.assertRaises(RowsNotFound, t.print_footer, 'foo')
+
+    def test_add_footers_no_body(self):
+        out, t = self.table(headers=['One'])
+        t.print_footer('foo')
+        self.assertIn('One', out()[0])
+        self.assertIn('foo', out()[-1])
 
     def test_gen_seed_over_under(self):
         for seed_max in range(12):

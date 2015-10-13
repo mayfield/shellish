@@ -15,6 +15,11 @@ import time
 from . import vtml
 
 
+class RowsNotFound(ValueError):
+    """ Similar to StopIteration but not specific to iterator protocol. """
+    pass
+
+
 class Table(object):
     """ A visual layout for row oriented data (like csv).  Most of the code
     here is dedicated to fitting the data as losslessly as possible onto a
@@ -213,14 +218,18 @@ class Table(object):
                   (self.headers and len(self.headers)) or \
                   (self.accessors_def and len(self.accessors_def))
         if not columns:
-            if data:
+            if data:  # only a maybe since iterators are truthy
                 # Peek into the data stream as a last resort.
                 tmp_iter = iter(data)
-                peek = next(tmp_iter)
-                columns = len(peek)
-                data = itertools.chain([peek], tmp_iter)
-            else:
-                raise ValueError("Indeterminate column count")
+                try:
+                    peek = next(tmp_iter)
+                except StopIteration:
+                    pass
+                else:
+                    columns = len(peek)
+                    data = itertools.chain([peek], tmp_iter)
+            if not columns:
+                raise RowsNotFound()
         accessors = self.make_accessors(columns)
         colspec = self.create_colspec(columns)
         renderer = self.renderer_class(colspec, accessors, self, data)
@@ -648,27 +657,28 @@ class MarkdownTableRenderer(PlainTableRenderer):
 Table.register_renderer(MarkdownTableRenderer)
 
 
-def tabulate(data, header=True, accessors=None, **table_options):
+def tabulate(data, header=True, headers=None, accessors=None,
+             **table_options):
     """ Shortcut function to produce tabular output of data without the
     need to create and configure a Table instance directly. The function
     does however return a table instance when it's done for any further use
-    by he user. """
-    empty = not data
-    headers = None
-    if not empty and header:
+    by the user. """
+    if header and not headers:
         data = iter(data)
         try:
             headers = next(data)
         except StopIteration:
-            empty = True
+            pass
         else:
-            if hasattr(headers, 'items') and accessors is None:
-                # dict mode
-                data = itertools.chain([headers], data)
-                accessors = list(headers)
-                headers = [x.capitalize().replace('_', ' ')
-                           for x in accessors]
+            data = itertools.chain([headers], data)
+    if headers and hasattr(headers, 'items') and accessors is None:
+        # Dict mode; Build accessors and headers from keys of data.
+        accessors = list(headers)
+        headers = [' '.join(map(str.capitalize, x.replace('_', ' ').split()))
+                   for x in accessors]
     t = Table(headers=headers, accessors=accessors, **table_options)
-    if not empty:
+    try:
         t.print(data)
+    except RowsNotFound:
+        pass
     return t
