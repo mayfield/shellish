@@ -326,6 +326,16 @@ class TableDataSupport(unittest.TestCase):
         self.assertRaises(RowsNotFound, t.print, [[]])
         self.assertRaises(RowsNotFound, t.print, [])
 
+    def test_no_double_up_tabulate(self):
+        out = io.StringIO()
+        tabulate([['abc']], file=out)
+        self.assertEqual(out.getvalue().count('abc'), 1)
+        out = io.StringIO()
+        tabulate([['abc'], ['XYZ']], file=out)
+        val = out.getvalue()
+        self.assertEqual(val.count('abc'), 1)
+        self.assertEqual(val.count('XYZ'), 1)
+
     def test_dict_tabulate(self):
         out = io.StringIO()
         t = tabulate([{
@@ -333,6 +343,7 @@ class TableDataSupport(unittest.TestCase):
         }], file=out)
         self.assertEqual(t.headers[0], 'This Is A Snake')
         self.assertIn('foo', out.getvalue())
+        self.assertEqual(out.getvalue().count('foo'), 1)
 
     def test_tabulate_with_headers_empty(self):
         out = io.StringIO()

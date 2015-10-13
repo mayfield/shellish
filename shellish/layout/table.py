@@ -669,10 +669,9 @@ def tabulate(data, header=True, headers=None, accessors=None,
             headers = next(data)
         except StopIteration:
             pass
-        else:
-            data = itertools.chain([headers], data)
     if headers and hasattr(headers, 'items') and accessors is None:
         # Dict mode; Build accessors and headers from keys of data.
+        data = itertools.chain([headers], data)
         accessors = list(headers)
         headers = [' '.join(map(str.capitalize, x.replace('_', ' ').split()))
                    for x in accessors]
