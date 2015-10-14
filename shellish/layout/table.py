@@ -9,6 +9,7 @@ import itertools
 import json
 import math
 import operator
+import re
 import shutil
 import sys
 import time
@@ -563,6 +564,8 @@ class JSONTableRenderer(TableRenderer):
     """ Generate JSON output of the table. """
 
     name = 'json'
+    key_split = re.compile('[\s\-_\.\/]')
+    key_filter = re.compile('[^a-zA-Z0-9]')
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -576,8 +579,12 @@ class JSONTableRenderer(TableRenderer):
 
     def make_key(self, value):
         """ Make camelCase variant of value. """
-        parts = value.lower().split()
-        key = parts[0] + ''.join(map(str.capitalize, parts[1:]))
+        if value:
+            parts = [self.key_filter.sub('', x)
+                     for x in self.key_split.split(value.lower())]
+            key = parts[0] + ''.join(map(str.capitalize, parts[1:]))
+        else:
+            key = ''
         if key in self.seen_keys:
             i = 1
             while '%s%d' % (key, i) in self.seen_keys:
