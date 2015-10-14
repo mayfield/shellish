@@ -119,9 +119,13 @@ class Table(object):
         False to disable this behavior but be warned the table will not look
         good. """
         self.title = title
-        self.columns_def = columns
-        self.accessors_def = accessors
-        self.headers = headers
+        # Freeze the table definitions...
+        try:
+            self.columns_def = columns.copy() if columns is not None else None
+        except AttributeError:
+            self.columns_def = tuple(columns)
+        self.accessors_def = tuple(accessors or ())
+        self.headers = tuple(headers or ())
         self.width = width
         self.flex = flex
         self.file = file if file is not None else sys.stdout
@@ -187,7 +191,7 @@ class Table(object):
         if not self.accessors_def:
             accessors = [operator.itemgetter(i) for i in range(columns)]
         else:
-            accessors = self.accessors_def[:]
+            accessors = list(self.accessors_def)
             for i, x in enumerate(accessors):
                 if not callable(x):
                     accessors[i] = operator.itemgetter(x)
