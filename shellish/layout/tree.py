@@ -2,7 +2,6 @@
 Tree layout.
 """
 
-import sys
 from . import vtml
 
 
@@ -20,15 +19,9 @@ class TreeNode(object):
 class Tree(object):
     """ Construct a visual tree from a data source. """
 
-    tree_L = '└── '
-    tree_T = '├── '
-    tree_vertspace = '│   '
-    try:
-        tree_L.encode(sys.stdout.encoding)
-    except UnicodeEncodeError:
-        tree_L = '\-- '
-        tree_T = '+-- '
-        tree_vertspace = '|   '
+    tree_L = vtml.beststr('└── ', '\-- ')
+    tree_T = vtml.beststr('├── ', '+-- ')
+    tree_vertspace = vtml.beststr('│   ', '|   ')
 
     def __init__(self, formatter=None, sort_key=None, plain=None):
         self.formatter = formatter or self.default_formatter

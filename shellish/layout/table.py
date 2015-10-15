@@ -37,11 +37,7 @@ class Table(object):
     column_padding = 2
     column_align = 'left'  # {left,right,center}
     title_align = 'left'
-    cliptext = '\u2026'  # ... as single char
-    try:
-        cliptext.encode(sys.stdout.encoding)
-    except UnicodeEncodeError:
-        cliptext = '...'
+    cliptext = vtml.beststr('…', '...')
     column_minwidth = len(cliptext)
     renderer_types = {}
 
@@ -267,11 +263,7 @@ class TableRenderer(object):
 
     name = None
     clip_default = False
-    linebreak = '\u2014'  # solid dash
-    try:
-        linebreak.encode(sys.stdout.encoding)
-    except UnicodeEncodeError:
-        linebreak = '-'
+    linebreak = vtml.beststr('—', '-')
 
     def __init__(self, colspec=None, accessors=None, table=None,
                  seed=None):
@@ -647,7 +639,7 @@ class MarkdownTableRenderer(PlainTableRenderer):
         super().capture_table_state(table)
         # Reserve initial space based on headers and min MD reqs.
         self.width = sum(max(len(h) + c['padding'], 3)
-                         for h, c in  zip(self.headers, self.colspec))
+                         for h, c in zip(self.headers, self.colspec))
         self.width += 2  # borders
 
     def mdprint(self, *columns):

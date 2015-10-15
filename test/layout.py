@@ -1,15 +1,23 @@
 
 import argparse
+import collections
 import io
 import statistics
 import unittest
-from shellish.layout import Table, TableRenderer, vtmlrender, tabulate, \
-                            RowsNotFound
+from shellish import layout as L
 
 
 def calc_table(*columns, width=100, data=None, flex=False):
-    t = Table(columns=columns, width=width, flex=flex, column_padding=0)
+    t = L.Table(columns=columns, width=width, flex=flex, column_padding=0)
     return t.make_renderer(data or []).widths
+
+
+def fileredir(call, *args, **kwargs):
+    """ Override `file` with stringio object and return a tuple of a function
+    to get the output and the instantiated callable. """
+    file = io.StringIO()
+    output = lambda: file.getvalue().splitlines()
+    return output, call(*args, file=file, **kwargs)
 
 
 class TabularUnflex(unittest.TestCase):
@@ -62,12 +70,9 @@ class TabularUnflex(unittest.TestCase):
 class TableRendering(unittest.TestCase):
 
     def table(self, *args, column_padding=0, **kwargs):
-        self.output = io.StringIO()
-        return Table(*args, file=self.output, column_padding=column_padding,
-                     **kwargs)
-
-    def get_lines(self):
-        return self.output.getvalue().splitlines()
+        self.get_lines, t = fileredir(L.Table, *args,
+                                      column_padding=column_padding, **kwargs)
+        return t
 
     def test_show_mode(self):
         t = self.table([10], width=10, clip=False, flex=False)
@@ -121,7 +126,7 @@ class VTMLStringTests(unittest.TestCase):
 
     def test_vtstr_overclip_plain(self):
         startval = 'A' * 10
-        s = vtmlrender(startval)
+        s = L.vtmlrender(startval)
         self.assertEqual(s.clip(11), startval)
         self.assertEqual(s.clip(11).text(), startval)
         self.assertEqual(s.clip(20), startval)
@@ -129,13 +134,13 @@ class VTMLStringTests(unittest.TestCase):
 
     def test_vtstr_noclip_plain(self):
         startval = 'A' * 10
-        s = vtmlrender(startval)
+        s = L.vtmlrender(startval)
         self.assertEqual(s.clip(10), startval)
         self.assertEqual(s.clip(10).text(), startval)
 
     def test_vtstr_underclip_plain(self):
         startval = 'A' * 10
-        s = vtmlrender(startval)
+        s = L.vtmlrender(startval)
         self.assertEqual(s.clip(9), startval[:9])
         self.assertEqual(s.clip(9).text(), startval[:9])
         self.assertEqual(s.clip(4), startval[:4])
@@ -148,7 +153,7 @@ class VTMLStringTests(unittest.TestCase):
 
     def test_vtstr_overclip_vtml(self):
         startval = 'A' * 10
-        s = vtmlrender('<b>%s</b>' % startval)
+        s = L.vtmlrender('<b>%s</b>' % startval)
         self.assertEqual(s.clip(11).text(), startval)
         self.assertEqual(s.clip(20).text(), startval)
         self.assertEqual(s.clip(11), s)
@@ -156,13 +161,13 @@ class VTMLStringTests(unittest.TestCase):
 
     def test_vtstr_noclip_vtml(self):
         startval = 'A' * 10
-        s = vtmlrender('<b>%s</b>' % startval)
+        s = L.vtmlrender('<b>%s</b>' % startval)
         self.assertEqual(s.clip(10).text(), startval)
         self.assertEqual(s.clip(10), s)
 
     def test_vtstr_underclip_vtml(self):
         startval = 'A' * 10
-        s = vtmlrender('<b>%s</b>' % startval)
+        s = L.vtmlrender('<b>%s</b>' % startval)
         self.assertEqual(s.clip(9).text(), startval[:9])
         self.assertEqual(str(s.clip(9)).count('A'), 9)
         self.assertEqual(s.clip(4).text(), startval[:4])
@@ -174,12 +179,12 @@ class VTMLStringTests(unittest.TestCase):
         self.assertRaises(ValueError, s.clip, -10)
 
     def test_vtstr_underclip_vtml_reset(self):
-        s = vtmlrender('<b>%s</b>' % 'AAAA')
+        s = L.vtmlrender('<b>%s</b>' % 'AAAA')
         self.assertTrue(str(s.clip(2)).endswith('\033[0m'))
 
     def test_vtstr_overclip_with_cliptextt(self):
         startval = 'A' * 10
-        s = vtmlrender(startval)
+        s = L.vtmlrender(startval)
         self.assertEqual(s.clip(12, '.'), startval)
         self.assertEqual(s.clip(11, '.'), startval)
         self.assertEqual(s.clip(10, '.'), startval)
@@ -192,7 +197,7 @@ class VTMLStringTests(unittest.TestCase):
 
     def test_vtstr_underclip_with_cliptextt(self):
         startval = 'A' * 10
-        s = vtmlrender(startval)
+        s = L.vtmlrender(startval)
         self.assertEqual(s.clip(9, '.'), startval[:8] + '.')
         self.assertEqual(s.clip(8, '.'), startval[:7] + '.')
         self.assertEqual(s.clip(7, '.'), startval[:6] + '.')
@@ -215,45 +220,45 @@ class VTMLStringTests(unittest.TestCase):
             '<b>asdf</notit>',
         ]
         for x in bad:
-            self.assertEqual(vtmlrender(x), x)
+            self.assertEqual(L.vtmlrender(x), x)
 
     def test_ordering(self):
-        self.assertGreater(vtmlrender('bbbb'), vtmlrender('aaaa'))
-        self.assertLess(vtmlrender('aaaa'), vtmlrender('bbbb'))
-        self.assertGreaterEqual(vtmlrender('bbbb'), vtmlrender('aaaa'))
-        self.assertGreaterEqual(vtmlrender('aaaa'), vtmlrender('aaaa'))
-        self.assertLessEqual(vtmlrender('aaaa'), vtmlrender('bbbb'))
-        self.assertLessEqual(vtmlrender('aaaa'), vtmlrender('aaaa'))
-        self.assertEqual(vtmlrender('aaaa'), vtmlrender('aaaa'))
+        self.assertGreater(L.vtmlrender('bbbb'), L.vtmlrender('aaaa'))
+        self.assertLess(L.vtmlrender('aaaa'), L.vtmlrender('bbbb'))
+        self.assertGreaterEqual(L.vtmlrender('bbbb'), L.vtmlrender('aaaa'))
+        self.assertGreaterEqual(L.vtmlrender('aaaa'), L.vtmlrender('aaaa'))
+        self.assertLessEqual(L.vtmlrender('aaaa'), L.vtmlrender('bbbb'))
+        self.assertLessEqual(L.vtmlrender('aaaa'), L.vtmlrender('aaaa'))
+        self.assertEqual(L.vtmlrender('aaaa'), L.vtmlrender('aaaa'))
 
     def test_add_same_type(self):
-        a = vtmlrender('aaaa')
-        b = vtmlrender('BBBB')
-        ab = vtmlrender('aaaaBBBB')
+        a = L.vtmlrender('aaaa')
+        b = L.vtmlrender('BBBB')
+        ab = L.vtmlrender('aaaaBBBB')
         self.assertEqual(a+b, ab)
         self.assertEqual(str(a+b), str(ab))
 
     def test_iadd_same_type(self):
-        a1 = vtmlrender('aaaa')
-        a1 += vtmlrender('BBBB')
-        a2 = vtmlrender('aaaaBBBB')
+        a1 = L.vtmlrender('aaaa')
+        a1 += L.vtmlrender('BBBB')
+        a2 = L.vtmlrender('aaaaBBBB')
         self.assertEqual(a1, a2)
 
     def test_add_str_type(self):
-        a = vtmlrender('aaaa')
+        a = L.vtmlrender('aaaa')
         b = 'BBBB'
-        ab = vtmlrender('aaaaBBBB')
+        ab = L.vtmlrender('aaaaBBBB')
         self.assertEqual(a+b, ab)
         self.assertEqual(str(a+b), str(ab))
 
     def test_iadd_str_type(self):
-        a1 = vtmlrender('aaaa')
+        a1 = L.vtmlrender('aaaa')
         a1 += 'BBBB'
-        a2 = vtmlrender('aaaaBBBB')
+        a2 = L.vtmlrender('aaaaBBBB')
         self.assertEqual(a1, a2)
 
     def test_iadd_unsupport_type(self):
-        a1 = vtmlrender('foo')
+        a1 = L.vtmlrender('foo')
         self.assertRaises(TypeError, lambda: a1 + 1)
         self.assertRaises(TypeError, lambda: a1 + b'bar')
 
@@ -261,9 +266,10 @@ class VTMLStringTests(unittest.TestCase):
 class TableDataSupport(unittest.TestCase):
 
     def table(self, *args, **kwargs):
-        file = io.StringIO()
-        output = lambda: file.getvalue().splitlines()
-        return output, Table(*args, file=file, **kwargs)
+        return fileredir(L.Table, *args, **kwargs)
+
+    def tabulate(self, *args, **kwargs):
+        return fileredir(L.tabulate, *args, **kwargs)
 
     def test_columns_from_only_list_data(self):
         output, t = self.table()
@@ -295,7 +301,7 @@ class TableDataSupport(unittest.TestCase):
 
     def test_columns_from_none_is_error(self):
         output, t = self.table()
-        self.assertRaises(RowsNotFound, t.make_renderer)
+        self.assertRaises(L.RowsNotFound, t.make_renderer)
 
     def test_columns_width_spec_only(self):
         output, t = self.table(columns=[None, None, None])
@@ -317,71 +323,67 @@ class TableDataSupport(unittest.TestCase):
 
     def test_zero_columns(self):
         output, t = self.table([])
-        self.assertRaises(RowsNotFound, t.print, [])
-        self.assertRaises(RowsNotFound, t.print, [[], []])
-        self.assertRaises(RowsNotFound, t.print, [[], [], []])
+        self.assertRaises(L.RowsNotFound, t.print, [])
+        self.assertRaises(L.RowsNotFound, t.print, [[], []])
+        self.assertRaises(L.RowsNotFound, t.print, [[], [], []])
         output, t = self.table([])
-        self.assertRaises(RowsNotFound, t.print, [[], [], []])
-        self.assertRaises(RowsNotFound, t.print, [[], []])
-        self.assertRaises(RowsNotFound, t.print, [[]])
-        self.assertRaises(RowsNotFound, t.print, [])
+        self.assertRaises(L.RowsNotFound, t.print, [[], [], []])
+        self.assertRaises(L.RowsNotFound, t.print, [[], []])
+        self.assertRaises(L.RowsNotFound, t.print, [[]])
+        self.assertRaises(L.RowsNotFound, t.print, [])
 
     def test_no_double_up_tabulate(self):
-        out = io.StringIO()
-        tabulate([['abc']], file=out)
-        self.assertEqual(out.getvalue().count('abc'), 1)
-        out = io.StringIO()
-        tabulate([['abc'], ['XYZ']], file=out)
-        val = out.getvalue()
+        output, t = self.tabulate([['abc']])
+        self.assertEqual(''.join(output()).count('abc'), 1)
+        output, t = self.tabulate([['abc'], ['XYZ']])
+        val = ''.join(output())
         self.assertEqual(val.count('abc'), 1)
         self.assertEqual(val.count('XYZ'), 1)
 
     def test_dict_tabulate(self):
-        out = io.StringIO()
-        t = tabulate([{
+        output, t = self.tabulate([{
             "this_is_a_snake": "foo"
-        }], file=out)
+        }])
         self.assertEqual(t.headers[0], 'This Is A Snake')
-        self.assertIn('foo', out.getvalue())
-        self.assertEqual(out.getvalue().count('foo'), 1)
+        val = ''.join(output())
+        self.assertIn('foo', val)
+        self.assertEqual(val.count('foo'), 1)
 
     def test_tabulate_with_headers_empty(self):
-        out = io.StringIO()
-        tabulate([], headers=['one'], file=out)
-        self.assertIn('one', out.getvalue())
+        output, t = self.tabulate([], headers=['one'])
+        self.assertIn('one', ''.join(output()))
 
     def test_tabulate_with_headers(self):
-        out = io.StringIO()
-        tabulate([['ONE']], headers=['one'], file=out)
-        self.assertIn('one', out.getvalue())
-        self.assertIn('ONE', out.getvalue())
+        output, t = self.tabulate([['ONE']], headers=['one'])
+        self.assertIn('one', output()[0])
+        self.assertIn(L.PlainTableRenderer.linebreak, output()[1])
+        self.assertIn('ONE', output()[2])
 
     def test_empty_iter_tabulate(self):
-        tabulate(iter([['header-only']]))
+        self.tabulate(iter([['header-only']]))
 
     def test_empty_iter_tabulate_headerarg(self):
-        tabulate(iter([]), header=False)
+        self.tabulate(iter([]), header=False)
 
     def test_empty_list_tabulate(self):
-        tabulate([['header-only']])
+        self.tabulate([['header-only']])
 
     def test_empty_list_tabulate_headerarg(self):
-        tabulate([], header=False)
+        self.tabulate([], header=False)
 
     def test_empty_list_print(self):
-        tabulate([], header=False)
+        self.tabulate([], header=False)
 
     def test_generator_tabulate_headerless(self):
         def g():
             for x in range(2):
                 yield [x]
-        out = io.StringIO()
-        tabulate(g(), header=False, file=out)
-        self.assertIn('1', out.getvalue())
+        output, t = self.tabulate(g(), header=False)
+        self.assertIn('1', ''.join(output()))
 
     def test_empty_add_footers_exc(self):
-        t = Table()
-        self.assertRaises(RowsNotFound, t.print_footer, 'foo')
+        t = L.Table()
+        self.assertRaises(L.RowsNotFound, t.print_footer, 'foo')
 
     def test_add_footers_no_body(self):
         out, t = self.table(headers=['One'])
@@ -440,19 +442,13 @@ class TableDataSupport(unittest.TestCase):
 class TableUsagePatterns(unittest.TestCase):
 
     def table(self, *args, column_padding=0, **kwargs):
-        self.output = io.StringIO()
-        return Table(*args, file=self.output, column_padding=column_padding,
-                     **kwargs)
-
-    def get_lines(self):
-        return self.output.getvalue().splitlines()
+        return fileredir(L.Table, *args, column_padding=column_padding, **kwargs)
 
     def test_headers_once(self):
-        t = self.table(headers=['foo'], width=3)
+        output, t = self.table(headers=['foo'], width=3)
         t.print([['one']])
         t.print([['two']])
-        self.assertEqual(self.get_lines(), ['foo', ('\u2014' * 3), 'one',
-                                            'two'])
+        self.assertEqual(output(), ['foo', ('\u2014' * 3), 'one', 'two'])
 
 
 class TableCalcs(unittest.TestCase):
@@ -473,7 +469,7 @@ class TableCalcs(unittest.TestCase):
         self.assertEqual(sum(widths), 100)
 
     def test_uniform_dist(self):
-        dist = TableRenderer.uniform_dist
+        dist = L.TableRenderer.uniform_dist
         for i in range(1, 101):
             for ii in range(151):
                 d = dist(None, i, ii)
@@ -483,14 +479,14 @@ class TableCalcs(unittest.TestCase):
 class TableArgGroup(unittest.TestCase):
 
     def test_table_group(self):
-        Table.add_format_group(argparse.ArgumentParser())
+        L.Table.add_format_group(argparse.ArgumentParser())
 
 
 class TableClosingContext(unittest.TestCase):
 
     def test_Table_context_noaction(self):
         closed = False
-        class TestTable(Table):
+        class TestTable(L.Table):
             def close(self, **kwargs):
                 super().close(*kwargs)
                 nonlocal closed
@@ -501,7 +497,7 @@ class TableClosingContext(unittest.TestCase):
 
     def test_Table_context_exc(self):
         class TestExc(Exception): pass
-        class TestTable(Table):
+        class TestTable(L.Table):
             def close(this, exception=None):
                 self.assertIs(exception[0], TestExc)
                 super().close(exception)
@@ -510,3 +506,92 @@ class TableClosingContext(unittest.TestCase):
                 raise TestExc()
         except TestExc:
             pass
+
+
+class JSONTableRenderer(unittest.TestCase):
+
+    def setUp(self):
+        t = L.Table([None], renderer='json')
+        self.r = t.make_renderer([['']])
+
+    def test_make_key_snakecase(self):
+        self.assertEqual(self.r.make_key('snake_case'), 'snakeCase')
+        self.assertEqual(self.r.make_key('snake_case_more'), 'snakeCaseMore')
+
+    def test_make_key_snakecase_dblunderscore(self):
+        self.assertEqual(self.r.make_key('snake__case'), 'snakeCase')
+
+    def test_make_key_snakecase_leadunderscore(self):
+        self.assertEqual(self.r.make_key('_snake_case'), 'SnakeCase')
+
+    def test_make_key_snakecase_dblleadunderscore(self):
+        self.assertEqual(self.r.make_key('__snake_case'), 'SnakeCase')
+
+    def test_make_key_dupkeys(self):
+        self.assertEqual(self.r.make_key('foo'), 'foo')
+        self.assertEqual(self.r.make_key('foo'), 'foo1')
+        self.assertEqual(self.r.make_key('foo'), 'foo2')
+        self.assertEqual(self.r.make_key('foo2'), 'foo21')
+
+    def test_make_key_scrub(self):
+        self.assertEqual(self.r.make_key('!@#$%^&*()foo'), 'foo')
+        self.assertEqual(self.r.make_key('!@#$%^&*()foo:"bar'), 'foobar')
+
+    def test_make_key_space(self):
+        self.assertEqual(self.r.make_key('This is some space - with-dashes'),
+                         'thisIsSomeSpaceWithDashes')
+
+
+class HTMLConversion(unittest.TestCase):
+
+    a_format = '<blue><u>%s</u></blue>'
+
+    def test_empty(self):
+        L.htmlrender('')
+
+    def test_parity(self):
+        for tag in ('b', 'u'):
+            markup = '<%s>stuff</%s>' % (tag, tag)
+            self.assertEqual(L.html2vtml(markup), markup)
+
+    def test_noop(self):
+        self.assertEqual(L.html2vtml('<script>nope</script>'), '')
+
+    def test_strip(self):
+        self.assertEqual(L.html2vtml('<script>nope</script>'), '')
+        self.assertEqual(L.html2vtml('before<script>nope</script>after'),
+                         'beforeafter')
+
+    def test_icase_tag(self):
+        t = L.vtmlrender('<b>foo</b>')
+        self.assertEqual(L.htmlrender('<B>foo</b>'), t)
+        self.assertEqual(L.htmlrender('<B>foo</B>'), t)
+        self.assertEqual(L.htmlrender('<b>foo</B>'), t)
+
+    def test_a_tag_no_href(self):
+        self.assertEqual(L.html2vtml('<a>foo</a>'), self.a_format % 'foo')
+
+    def test_empty_href(self):
+        self.assertEqual(L.html2vtml('<a href>foo</a>'), self.a_format % 'foo')
+
+    def test_unquoted_href(self):
+        self.assertEqual(L.html2vtml('<a href=link.here>foo</a>'),
+                         self.a_format % 'foo (link.here)')
+
+    def test_quoted_href(self):
+        self.assertEqual(L.html2vtml('<a href="link.here">foo</a>'),
+                         self.a_format % 'foo (link.here)')
+        self.assertEqual(L.html2vtml("<a href='link.here'>foo</a>"),
+                         self.a_format % 'foo (link.here)')
+
+    def test_icase_href(self):
+        for x in ('HREF', 'Href', 'hreF', 'href'):
+            self.assertEqual(L.html2vtml('<a %s="link.here">foo</a>' % x),
+                             self.a_format % 'foo (link.here)', x)
+            self.assertEqual(L.html2vtml('<A %s="link.here">foo</a>' % x),
+                             self.a_format % 'foo (link.here)')
+            self.assertEqual(L.html2vtml('<A %s="link.here">foo</A>' % x),
+                             self.a_format % 'foo (link.here)')
+            self.assertEqual(L.html2vtml('<a %s="link.here">foo</A>' % x),
+                             self.a_format % 'foo (link.here)')
+

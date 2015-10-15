@@ -6,6 +6,7 @@ import functools
 import html.parser
 import itertools
 import shutil
+import sys
 
 
 def is_terminal():
@@ -14,6 +15,19 @@ def is_terminal():
     should be used or not. """
     fallback = object()
     return shutil.get_terminal_size((fallback, 0))[0] is not fallback
+
+
+def beststr(*strings):
+    """ Test if the output device can handle the desired strings. The options
+    should be sorted by preference. Eg. beststr(unicode, ascii). """
+    for x in strings:
+        try:
+            x.encode(sys.stdout.encoding)
+        except UnicodeEncodeError:
+            pass
+        else:
+            return x
+    raise ValueError('No valid strings found')
 
 
 class VTMLParser(html.parser.HTMLParser):
