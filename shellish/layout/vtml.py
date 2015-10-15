@@ -58,6 +58,24 @@ class VTMLParser(html.parser.HTMLParser):
         'bgwhite': 47,
     }
 
+    escape = ('&',)
+    escape_setinal_base = 0xe2c6 # protected by PAU
+
+    def __init__(self, *args, **kwargs):
+        escape_tuples = enumerate(self.escape, self.escape_setinal_base)
+        self.escape_map = tuple((chr(i), x) for i, x in escape_tuples)
+        super().__init__(*args, **kwargs)
+
+    def feed(self, data):
+        """ We need to prevent insertion of some special HTML characters
+        (entity refs and maybe more).  It's hard to prevent the state machine
+        from blowing up with them in the data, so we temporarily replacing
+        them with a reserved unicode value based on the PAU private space. """
+        for mark, special in self.escape_map:
+            assert mark not in data
+            data = data.replace(special, mark)
+        super().feed(data)
+
     def make_attr(self, *states):
         """ Generate a vt100 escape sequence for one or more states. """
         attrs = ';'.join(map(str, states))
@@ -71,12 +89,16 @@ class VTMLParser(html.parser.HTMLParser):
         super().reset()
 
     def handle_starttag(self, tag, attrs):
-        opcode = self.tags[tag]
+        opcode = self.tags.get(tag)
+        if opcode is None:
+            return self.handle_data(self.get_starttag_text())
         self.state.append(opcode)
         self.prestate.append(opcode)
         self.open_tags.append(tag)
 
     def handle_endtag(self, tag):
+        if tag not in self.tags:
+            return self.handle_data("</%s>" % tag)
         if self.open_tags[-1] != tag:
             raise SyntaxError("Bad close tag: %s; Expected: %s" % (tag,
                               self.open_tags[-1]))
@@ -94,13 +116,30 @@ class VTMLParser(html.parser.HTMLParser):
             del self.prestate[:]
         self.buf.append(data)
 
+    def handle_entityref(self, name):
+        raise RuntimeError("programmer error")
+
+    def handle_charref(self, name):
+        raise RuntimeError("programmer error")
+
+    def unknown_decl(self, name):
+        raise RuntimeError("programmer error")
+
+    def handle_comment(self, data):
+        raise RuntimeError("programmer error")
+
     def close(self):
         super().close()
         if self.open_tags or self.prestate:
             self.buf.append(self.make_attr(self.tags['normal']))
 
     def getvalue(self):
-        return VTML(*self.buf)
+        buf = self.buf.copy()
+        for i, x in enumerate(buf):
+            for mark, special in self.escape_map:
+                x = x.replace(mark, special)
+            buf[i] = x
+        return VTML(*buf)
 
 vtmlparser = VTMLParser()
 
@@ -219,7 +258,7 @@ class VTML(object):
         return type(self)(*chained, length_hint=width)
 
 
-def vtmlrender(vtmarkup, plain=None):
+def vtmlrender(vtmarkup, plain=None, strict=False):
     """ Look for vt100 markup and render to vt opcodes. """
     if isinstance(vtmarkup, VTML):
         return vtmarkup.plain() if plain else vtmarkup
@@ -227,6 +266,8 @@ def vtmlrender(vtmarkup, plain=None):
         vtmlparser.feed(vtmarkup)
         vtmlparser.close()
     except:
+        if strict:
+            raise
         return VTML(str(vtmarkup))
     else:
         value = vtmlparser.getvalue()

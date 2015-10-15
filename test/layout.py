@@ -1,7 +1,7 @@
 
 import argparse
-import collections
 import io
+import itertools
 import statistics
 import unittest
 from shellish import layout as L
@@ -216,8 +216,8 @@ class VTMLStringTests(unittest.TestCase):
             1,
             ['asdf', 'asdf'],
             [None, None],
-            '<nope>asdf',
-            '<b>asdf</notit>',
+            '<>asdf',
+            '</b>asdf</notit>',
         ]
         for x in bad:
             self.assertEqual(L.vtmlrender(x), x)
@@ -262,6 +262,40 @@ class VTMLStringTests(unittest.TestCase):
         self.assertRaises(TypeError, lambda: a1 + 1)
         self.assertRaises(TypeError, lambda: a1 + b'bar')
 
+    def test_amp_tail_single_char(self):
+        """ Without a workaround this hits a bug in HTMLParser. """
+        t = 'a&b'
+        self.assertEqual(L.vtmlrender(t, strict=True), t)
+
+    def test_amp_tail_double_char(self):
+        t = 'a&bc'
+        self.assertEqual(L.vtmlrender(t, strict=True), t)
+
+    def test_amp_tail(self):
+        t = 'a&'
+        self.assertEqual(L.vtmlrender(t, strict=True), t)
+
+    def test_amp_normal(self):
+        for t in ('a&gt;', '&lt;', '&ltss;', '&;', '&abc;<other>'):
+            self.assertEqual(L.vtmlrender(t, strict=True), t)
+
+    def test_wrong_tag_tolerance(self):
+        bad = ('foobar', 'foo', 'bar')
+        perms = itertools.permutations(bad)
+        for starts in perms:
+            suffix = '<b>valid</b>'
+            valid = str(L.vtmlrender(suffix, strict=True))
+            self.assertIn('\033', valid, 'sanity test to validate next portion')
+            ends = next(perms)  # makes for bad closes
+            buf = ["<%s>asdf</%s>" % (x, y) for x, y in zip(starts, ends)]
+            line = ''.join(buf)
+            ugly = str(L.vtmlrender(line + suffix, strict=True))
+            self.assertIn(valid, ugly)
+            self.assertEqual(ugly, line + valid, 'partial conv did not work')
+
+    def test_pound(self):
+        for t in ('a#bc', 'a&#1;'):
+            self.assertEqual(L.vtmlrender(t, strict=True), t)
 
 class TableDataSupport(unittest.TestCase):
 
