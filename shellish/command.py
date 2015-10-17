@@ -144,7 +144,7 @@ class Command(object):
         if not self.desc or desc:
             self.desc = desc or alt_desc
         self.shell = None
-        self.subcommands = []
+        self.subcommands = collections.OrderedDict()
         self.default_subcommand = None
         self.context_keys = set()
         self.inject_context(context)
@@ -197,7 +197,7 @@ class Command(object):
             pctx = dict((x, getattr(parent, x)) for x in parent.context_keys)
             self.inject_context(pctx)
             self.depth = parent.depth + 1
-            for command in self.subcommands:
+            for command in self.subcommands.values():
                 command.parent = self  # bump.
         else:
             self.depth = 0
@@ -209,7 +209,7 @@ class Command(object):
         self.context_keys |= set(context.keys())
         for key, value in context.items():
             setattr(self, key, value)
-        for command in self.subcommands:
+        for command in self.subcommands.values():
             command.inject_context(context)
 
     @property
@@ -221,7 +221,7 @@ class Command(object):
         """ Update ourself and any of our subcommands. """
         self.argparser.prog = prog
         fmt = '%s %%s' % prog if prog else '%s'
-        for command in self.subcommands:
+        for command in self.subcommands.values():
             command.prog = fmt % command.name
 
     @property
@@ -231,7 +231,7 @@ class Command(object):
     @depth.setter
     def depth(self, value):
         """ Update ourself and any of our subcommands. """
-        for command in self.subcommands:
+        for command in self.subcommands.values():
             command.depth = value + 1
             del command.argparser._defaults['command%d' % self._depth]
             command.argparser._defaults['command%d' % value] = command
@@ -430,6 +430,8 @@ class Command(object):
         command.parent = self
         if command.name is None:
             raise TypeError('Cannot add unnamed command: %s' % command)
+        if command.name in self.subcommands:
+            raise ValueError('Command name already added: %s' % command.name)
         if not self.subparsers:
             desc = 'Provide a subcommand argument to perform an operation.'
             addsub = self.argparser.add_subparsers
@@ -446,7 +448,10 @@ class Command(object):
         action = self.subparsers._ChoicesPseudoAction(command.name, (), help)
         self.subparsers._choices_actions.append(action)
         self.subparsers._name_parser_map[command.name] = command.argparser
-        self.subcommands.append(command)
+        self.subcommands[command.name] = command
+
+    def __getitem__(self, item):
+        return self.subcommands[item]
 
 
 class SystemCompletionSetup(Command):
