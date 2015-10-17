@@ -40,7 +40,7 @@ class Shell(cmd.Cmd):
         self.setup_readline()
         raw_prompt = self.config['ui']['prompt_format']
         self.prompt_format = ast.literal_eval("'%s '" % raw_prompt)
-        for x in root_command.subcommands:
+        for x in root_command.subcommands.values():
             self.attach_command(x)
         super().__init__()
 
@@ -106,7 +106,7 @@ class Shell(cmd.Cmd):
         names = super().get_names()
         commands = self.root_command.subcommands
         for op in ('help', 'do', 'complete'):
-            names.extend('%s_%s' % (op, x.name) for x in commands)
+            names.extend('%s_%s' % (op, x) for x in commands)
         return names
 
     def complete(self, text, state):
