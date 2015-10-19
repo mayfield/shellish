@@ -12,14 +12,14 @@ import readline
 import shlex
 import sys
 import traceback
-from . import layout
+from . import eventing, layout
 
 
 class ShellQuit(Exception):
     pass
 
 
-class Shell(cmd.Cmd):
+class Shell(eventing.Eventer, cmd.Cmd):
     """ The interactive manager for a session of command calls.  This babysits
     a tree of commands until the user requests our exit. """
 
@@ -131,18 +131,6 @@ class Shell(cmd.Cmd):
         """ Do not re-run the last command. """
         pass
 
-    def columnize(self, *args, **kwargs):
-        return layout.columnize(*args, **kwargs)
-
-    def tabulate(self, *args, **kwargs):
-        return layout.tabulate(*args, **kwargs)
-
-    def vtmlprint(self, *args, **kwargs):
-        return layout.vtmlprint(*args, **kwargs)
-
-    def tree(self, *args, **kwargs):
-        return layout.dicttree(*args, **kwargs)
-
     def handle_cmd_exc(self, exc):
         """ Do any formatting of cmdloop exceptions or simply reraise if the
         error is bad enough. """
@@ -163,7 +151,7 @@ class Shell(cmd.Cmd):
                              self.exception_verbosity)
 
     def pretty_print_exc(self, exc):
-        self.vtmlprint("<b>Command Error:</b>", exc)
+        layout.vtmlprint("<b>Command Error:</b>", exc)
 
     def cmdloop(self):
         history_file = self.load_history()

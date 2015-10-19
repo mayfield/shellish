@@ -513,7 +513,7 @@ class TableCalcs(unittest.TestCase):
 class TableArgGroup(unittest.TestCase):
 
     def test_table_group(self):
-        L.Table.add_format_group(argparse.ArgumentParser())
+        L.Table.attach_arguments(argparse.ArgumentParser())
 
 
 class TableClosingContext(unittest.TestCase):

@@ -51,7 +51,8 @@ class Table(object):
     def __init__(self, columns=None, headers=None, accessors=None, width=None,
                  clip=None, flex=True, file=None, cliptext=None,
                  column_minwidth=None, column_padding=None, column_align=None,
-                 renderer=None, title=None, title_align=None):
+                 renderer=None, title=None, title_align=None, column_mask=None,
+                 hide_header=False, hide_footer=False):
         """ The .columns should be a list of width specs or a style dict.
         Width specs can be whole numbers representing fixed char widths,
         fractions representing percentages of available table width or None
@@ -126,6 +127,9 @@ class Table(object):
         self.width = width
         self.flex = flex
         self.file = file if file is not None else sys.stdout
+        self.hide_header = hide_header
+        self.hide_footer = hide_footer
+        self.column_mask = column_mask
         self.default_renderer = None
         if not renderer:
             if self.file is not sys.stdout or not vtml.is_terminal():
@@ -167,22 +171,80 @@ class Table(object):
         del cls.renderer_types[renderer.name]
 
     @classmethod
-    def add_format_group(cls, parser, dest='table_format', default=None,
-                         title=None, desc=None, excludes=None):
-        """ Return an argparse group with the available renderer options for a
-        table.  Ie. --json, --csv, --plain, etc. """
-        title = 'table formatting options' if title is None else title
+    def attach_arguments(cls, parser, prefix='--', skip_formats=False,
+                         format_excludes=None, format_title=None,
+                         format_desc=None, skip_filters=False,
+                         filter_excludes=None, filter_title=None,
+                         filter_desc=None):
+        """ Attach argparse arguments to an argparse parser/group with table
+        options.  These are renderer options and filtering options with the
+        ability to turn off headers and footers.  The return value is function
+        that parses an argparse.Namespace object into keyword arguments for a
+        layout.Table constructor. """
+        convs = []
+        if not skip_formats:
+            attach = cls.attach_format_arguments
+            convs.append(attach(parser, prefix, format_excludes, format_title,
+                                format_desc))
+        if not skip_filters:
+            attach = cls.attach_filter_arguments
+            convs.append(attach(parser, prefix, filter_excludes, filter_title,
+                                filter_desc))
+
+        def argparse_ns_to_table_opts(ns):
+            options = {}
+            for conv in convs:
+                options.update(conv(ns))
+            return options
+        return argparse_ns_to_table_opts
+
+    @classmethod
+    def attach_format_arguments(cls, parser, prefix='--', excludes=None,
+                                title=None, desc=None):
+        title = 'table output format' if title is None else title
         desc = 'Selection of output formats for table display.  The ' \
                'default behavior is to detect the output device\'s ' \
                'capabilities.' if desc is None else desc
         group = parser.add_argument_group(title, description=desc)
+        ex_group = group.add_mutually_exclusive_group()
         excludes = excludes or set()
         for name, renderer in sorted(cls.renderer_types.items()):
             if name in excludes:
                 continue
-            group.add_argument('--%s' % name, dest=dest, action='store_const',
-                               const=name, help=inspect.getdoc(renderer))
-        return group
+            ex_group.add_argument('%s%s' % (prefix, name), dest='table_format',
+                                  action='store_const', const=name,
+                                  help=inspect.getdoc(renderer))
+        def ns2table(ns):
+            return {
+                "renderer": ns.table_format
+            }
+        return ns2table
+
+    @classmethod
+    def attach_filter_arguments(cls, parser, prefix='--', excludes=None,
+                                title=None, desc=None):
+        title = 'table filters' if title is None else title
+        desc = 'Options for filtering the table display.' if desc is None \
+               else desc
+        group = parser.add_argument_group(title, description=desc)
+        excludes = excludes or set()
+        if 'columns' not in excludes:
+            group.add_argument('%scolumns' % prefix, dest='table_columns',
+                               metavar="COLUMN_INDEX", nargs='+', type=int,
+                               help="Only show specific columns")
+        if 'no-header' not in excludes:
+            group.add_argument('%sno-header' % prefix, dest='no_table_header',
+                               action='store_true', help="Hide table header.")
+        if 'no-footer' not in excludes:
+            group.add_argument('%sno-footer' % prefix, dest='no_table_footer',
+                               action='store_true', help="Hide table footer.")
+        def ns2table(ns):
+            return {
+                "column_mask": ns.table_columns,
+                "hide_header": ns.no_table_header,
+                "hide_footer": ns.no_table_footer
+            }
+        return ns2table
 
     def make_accessors(self, columns):
         if not self.accessors_def:
@@ -212,6 +274,12 @@ class Table(object):
                     dst['width'] = src
         return spec
 
+    def column_mask_filter(self, items):
+        if not self.column_mask:
+            return items
+        else:
+            return [x for i, x in enumerate(items, 1) if i in self.column_mask]
+
     def make_renderer(self, data=None):
         """ Consume and analyze everything we know up to this point and create
         a renderer instance that can be used for writing rows hence forth. """
@@ -231,10 +299,10 @@ class Table(object):
                     data = itertools.chain([peek], tmp_iter)
             if not columns:
                 raise RowsNotFound()
-        accessors = self.make_accessors(columns)
-        colspec = self.create_colspec(columns)
-        renderer = self.renderer_class(colspec, accessors, self, data)
-        return renderer
+        accessors = self.column_mask_filter(self.make_accessors(columns))
+        colspec = self.column_mask_filter(self.create_colspec(columns))
+        headers = self.headers and self.column_mask_filter(self.headers[:])
+        return self.renderer_class(colspec, accessors, headers, self, data)
 
     def print(self, rows):
         """ Write the data to our output stream (stdout).  If the table is not
@@ -249,6 +317,8 @@ class Table(object):
         return self.print([row])
 
     def print_footer(self, content):
+        if self.hide_footer:
+            return
         if not self.default_renderer:
             self.print([])
         self.default_renderer.print_footer(content)
@@ -265,7 +335,7 @@ class TableRenderer(object):
     clip_default = False
     linebreak = vtml.beststr('—', '-')
 
-    def __init__(self, colspec=None, accessors=None, table=None,
+    def __init__(self, colspec=None, accessors=None, headers=None, table=None,
                  seed=None):
         """ All calculated values required for rendering a table are kept
         here.  In theory a single Table instance can be used to render
@@ -274,6 +344,7 @@ class TableRenderer(object):
         Sunday. """
         self.colspec = colspec
         self.accessors = accessors
+        self.headers = headers
         self.capture_table_state(table)
         self.prerendered = None
         self.seed = None
@@ -281,7 +352,7 @@ class TableRenderer(object):
             self.prerendered, self.seed = self.seed_collect(seed)
         self.widths = self.calc_widths(self.prerendered)
         self.formatters = self.make_formatters()
-        self.headers_drawn = not self.headers
+        self.headers_drawn = not headers
         self.footers_drawn = False
 
     def __enter__(self):
@@ -339,14 +410,13 @@ class TableRenderer(object):
         our pseudo "frozen" nature. """
         for x in ('file', 'clip', 'cliptext', 'flex', 'width', 'title',
                   'title_align', 'max_render_prefill', 'max_render_delay',
-                  'min_render_prefill'):
+                  'min_render_prefill', 'column_mask', 'hide_header'):
             setattr(self, x, getattr(table, x))
         if not self.width:
             self.width = shutil.get_terminal_size()[0] \
                          if self.file is sys.stdout else 80
         if self.clip is None:
             self.clip = self.clip_default
-        self.headers = table.headers and table.headers[:]
 
     def render_data(self, data):
         """ Get the data from the raw list of objects. """
@@ -380,7 +450,8 @@ class TableRenderer(object):
 
     def print(self, data):
         if not self.headers_drawn:
-            self.print_header()
+            if not self.hide_header:
+                self.print_header()
             self.headers_drawn = True
         self.print_rendered(self.render_data(data))
 
@@ -611,7 +682,7 @@ class CSVTableRenderer(TableRenderer):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.writer = None
+        self.writer = csv.writer(self.file)
 
     def cell_format(self, value):
         return vtml.vtmlrender(value).text()
@@ -621,7 +692,6 @@ class CSVTableRenderer(TableRenderer):
         pass
 
     def print_header(self):
-        self.writer = csv.writer(self.file)
         self.writer.writerow(self.headers)
 
     def print_rendered(self, rendered_values):

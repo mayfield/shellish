@@ -18,7 +18,7 @@ import sys
 import textwrap
 import time
 import traceback
-from . import completer, shell, layout
+from . import completer, shell, layout, eventing
 
 
 def linebuffered_stdout():
@@ -102,7 +102,7 @@ class VTMLHelpFormatter(argparse.HelpFormatter):
                            for x in paragraphs)
 
 
-class Command(object):
+class Command(eventing.Eventer):
     """ The primary encapsulation for a shellish command.  Each command or
     subcommand should be an instance of this class.  The docstring for sub-
     classes is used in --help output for this command. """
@@ -133,6 +133,8 @@ class Command(object):
 
     def __init__(self, parent=None, title=None, desc=None, name=None,
                  **context):
+        self.add_events(['prerun', 'postrun', 'setup_args', 'precomplete',
+                         'postcomplete'])
         if name:
             self.name = name
         if type(self) is not Command:
@@ -153,6 +155,7 @@ class Command(object):
         self.argparser = self.create_argparser()
         self.last_invoke = None
         self.setup_args(self.argparser)
+        self.fire_event('setup_args', self.argparser)
 
     def __call__(self, args=None, argv=None):
         """ If a subparser is present and configured  we forward invocation to
@@ -173,14 +176,20 @@ class Command(object):
                 parser = self.default_subcommand.argparser
                 parser.parse_args([], namespace=args)
                 return self(args)  # retry
+        self.fire_class_event('prerun', args)
+        self.fire_event('prerun', args)
         self.prerun(args)
         try:
             result = self.run(args)
         except BaseException as e:
             self.postrun(args, None, e)
+            self.fire_event('postrun', args, None, e)
+            self.fire_class_event('postrun', args, None, e)
             raise e
         else:
             self.postrun(args, result)
+            self.fire_event('postrun', args, result)
+            self.fire_class_event('postrun', args, result)
             return result
 
     @property
@@ -260,10 +269,10 @@ class Command(object):
                                   **filetype_options or {})
         return self.add_argument(*args, type=type_, **kwargs)
 
-    def add_table_group(self, *args, parser=None, **kwargs):
+    def add_table_arguments(self, *args, parser=None, **kwargs):
         if parser is None:
             parser = self.argparser
-        return layout.Table.add_format_group(parser, *args, **kwargs)
+        return layout.Table.attach_arguments(parser, *args, **kwargs)
 
     def create_argparser(self):
         """ Factory for arg parser.  Can be overridden as long as it returns
@@ -290,6 +299,7 @@ class Command(object):
         """ Get and format completer choices.  Note that all internal calls to
         completer functions must use [frozen]set()s but this wrapper has to
         return a list to satisfy cmd.Cmd. """
+        self.fire_event('precomplete', text, line, begin, end)
         choices = self.complete(text, line, begin, end)
         sz = len(choices)
         if sz == 1:
@@ -300,19 +310,8 @@ class Command(object):
             # We don't need the sentinel choice to prevent completion
             # when there is already more than 1 choice.
             choices -= {completer.ActionCompleter.sentinel}
+        self.fire_event('postcomplete', choices)
         return list(choices)
-
-    def columnize(self, *args, **kwargs):
-        return layout.columnize(*args, **kwargs)
-
-    def tabulate(self, *args, **kwargs):
-        return layout.tabulate(*args, **kwargs)
-
-    def vtmlprint(self, *args, **kwargs):
-        return layout.vtmlprint(*args, **kwargs)
-
-    def tree(self, *args, **kwargs):
-        return layout.dicttree(*args, **kwargs)
 
     def complete(self, text, line, begin, end):
         """ Do naive argument parsing so the completer has better ability to
@@ -453,6 +452,8 @@ class Command(object):
     def __getitem__(self, item):
         return self.subcommands[item]
 
+Command.add_class_events(['prerun', 'postrun'])
+
 
 class SystemCompletionSetup(Command):
     """ Generate a bash/zsh compatible completion script.
@@ -508,6 +509,7 @@ class SystemCompletionSetup(Command):
 
     def setup_args(self, parser):
         self.add_argument('--seed', nargs=argparse.REMAINDER)
+        super().setup_args(parser)
 
     def run(self, args):
         if not args.seed:
