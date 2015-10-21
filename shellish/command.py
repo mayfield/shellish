@@ -477,12 +477,8 @@ class SystemCompletionSetup(Command):
         'bash': '''
             _%(prog)s_%(name)s() {
                 local words cword
-                if type _get_comp_words_by_ref &>/dev/null; then
-                    _get_comp_words_by_ref -n = -n @ -w words -i cword
-                else
-                    cword="$COMP_CWORD"
-                    words=("${COMP_WORDS[@]}")
-                fi
+                cword="$COMP_CWORD"
+                words=("${COMP_WORDS[@]}")
                 local si="$IFS"
                 IFS=$'\\n' COMPREPLY=($(COMP_CWORD="$cword" \\
                                      COMP_LINE="$COMP_LINE" \\
