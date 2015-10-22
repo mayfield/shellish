@@ -247,13 +247,26 @@ class Table(object):
         return ns2table
 
     def make_accessors(self, columns):
-        if not self.accessors_def:
-            accessors = [operator.itemgetter(i) for i in range(columns)]
-        else:
-            accessors = list(self.accessors_def)
-            for i, x in enumerate(accessors):
-                if not callable(x):
-                    accessors[i] = operator.itemgetter(x)
+        """ Accessors can be numeric keys for sequence row data, string keys
+        for mapping row data, or a callable function.  For numeric and string
+        accessors they can be inside a 2 element tuple where the 2nd value is
+        the default value;  Similar to dict.get(lookup, default). """
+        accessors = list(self.accessors_def or range(columns))
+        for i, x in enumerate(accessors):
+            if not callable(x):
+                if isinstance(x, collections.abc.Sequence) and \
+                   not isinstance(x, str):
+                    key, default = x
+                else:
+                    key = x
+                    default = ''
+
+                def acc(row, key=key, default=default):
+                    try:
+                        return row[key]
+                    except (KeyError, IndexError):
+                        return default
+                accessors[i] = acc
         return accessors
 
     def create_colspec(self, columns):
