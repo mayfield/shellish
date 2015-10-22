@@ -6,6 +6,7 @@ to a text file in human readable format.
 import collections
 import html
 import html.parser
+import re
 import warnings
 from . import vtml
 
@@ -20,8 +21,12 @@ class HTMLConv(html.parser.HTMLParser):
 
     noop = {
         "head",
-        "html"
+        "html",
+        "div",
+        "span"
     }
+
+    whitespace = re.compile(r'\s+')
 
     def reset(self):
         self.buf = []
@@ -64,7 +69,7 @@ class HTMLConv(html.parser.HTMLParser):
 
     def handle_data(self, data):
         if not self.stripping():
-            self.buf.append(data.replace('\n', ' ').replace('\r', ''))
+            self.buf.append(self.whitespace.sub(' ', data))
 
     def handle_start_b(self, tag, attrs):
         self.buf.append('<b>')
@@ -111,6 +116,36 @@ class HTMLConv(html.parser.HTMLParser):
 
     def handle_end_br(self, tag, attrs):
         pass
+
+    def handle_start_ol(self, tag, attrs):
+        self.buf.append('\n')
+
+    def handle_end_ol(self, tag, attrs):
+        self.buf.append('\n')
+
+    def handle_start_ul(self, tag, attrs):
+        self.buf.append('\n')
+
+    def handle_end_ul(self, tag, attrs):
+        self.buf.append('\n')
+
+    def handle_start_li(self, tag, attrs):
+        for x in reversed(self.tag_stack):
+            if x in ('ul', 'ol'):
+                list_attrs = self.tag_attrs[x][-1]
+                tag = x
+                break
+        else:
+            warnings.warn("Bad LI tag is outside UL or OL")
+        if tag == 'ol':
+            bullet = '%d.' % list_attrs.setdefault('_index', 1)
+            list_attrs['_index'] += 1
+        else:
+            bullet = vtml.beststr('\u25cf', '*')
+        self.buf.append('<b> %s  </b>' % bullet)
+
+    def handle_end_li(self, tag, attrs):
+        self.buf.append('\n')
 
     def getvalue(self):
         return ''.join(self.buf)
