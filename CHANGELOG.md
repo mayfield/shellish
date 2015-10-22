@@ -6,6 +6,7 @@
 - Argument parsing group for table formats.
 - Table is a context manager that calls close when exited.
 - CSV, JSON and Markdown table renderers.
+- HTML to VTML parser.
 
 ### Changed
 - VTML rendering of --help output;  Emboldened some elements.
