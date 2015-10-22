@@ -141,7 +141,7 @@ class HTMLConv(html.parser.HTMLParser):
             bullet = '%d.' % list_attrs.setdefault('_index', 1)
             list_attrs['_index'] += 1
         else:
-            bullet = vtml.beststr('\u25cf', '*')
+            bullet = vtml.beststr('●', '*')
         self.buf.append('<b> %s  </b>' % bullet)
 
     def handle_end_li(self, tag, attrs):
