@@ -231,7 +231,7 @@ class Table(object):
         if 'columns' not in excludes:
             group.add_argument('%scolumns' % prefix, dest='table_columns',
                                metavar="COLUMN_INDEX", nargs='+', type=int,
-                               help="Only show specific columns")
+                               help="Only show specific columns.")
         if 'no-header' not in excludes:
             group.add_argument('%sno-header' % prefix, dest='no_table_header',
                                action='store_true', help="Hide table header.")
