@@ -2,6 +2,8 @@
 Tree layout.
 """
 
+import collections
+import collections.abc
 from . import vtml
 
 
@@ -58,8 +60,8 @@ class Tree(object):
                 yield from self.render(x.children, prefix=''.join(line))
 
 
-def dicttree(data, render_only=False, **options):
-    """ Render a tree structure based on a well formed dictionary. The keys
+def treeprint(data, render_only=False, **options):
+    """ Render a tree structure based on generic python containers. The keys
     should be titles and the values are children of the node or None if it's
     an empty leaf node;  Primitives are valid leaf node labels too.  E.g.
 
@@ -77,9 +79,13 @@ def dicttree(data, render_only=False, **options):
             }
         }
     """
-    def crawl(obj):
+    def crawl(obj, odict=collections.OrderedDict):
         for key, value in obj.items():
-            if hasattr(value, 'items'):
+            if isinstance(value, collections.abc.Mapping):
+                yield TreeNode(key, children=crawl(value))
+            elif isinstance(value, collections.abc.Sequence) and \
+                 not isinstance(value, str):
+                value = odict((i, x) for i, x in enumerate(value))
                 yield TreeNode(key, children=crawl(value))
             elif value is not None:
                 yield TreeNode(key, label=value)

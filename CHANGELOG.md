@@ -11,6 +11,8 @@
 ### Changed
 - VTML rendering of --help output;  Emboldened some elements.
 - Better width handling of --help output.
+- Renamed dicttree to treeprint.
+- treeprint (formerly dicttree) can not print lists and dicts.
 
 ### Fixed
 - VTML concatenation works with str types now.
