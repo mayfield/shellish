@@ -1,6 +1,10 @@
 # Change Log
 
+
 ## [Unreleased] - unreleased
+
+
+## [1] - 2015-10-24
 ### Added
 - Color tags to VTML
 - Argument parsing group for table formats.
@@ -79,17 +83,17 @@
   You can set padding, width, minwidth, and align settings on each column
 
 ### Changed
-- Command.shell() renamed to Command.interact()
-- Command.inject_context accepts a dictionary or kwargs and will cascade
+- `Command.shell()` renamed to Command.interact()
+- `Command.inject_context` accepts a dictionary or kwargs and will cascade
   new values to subcommands.
-- Renamed vt prefixes to vtml. ie. vtprint -> vtmlprint, etc.
+- Renamed vt prefixes to vtml. ie. `vtprint` -> `vtmlprint`, etc.
 - Split out table render state into its own class.  The Table class is
   used to define the config, but at render time a TableRenderer instance is
   created which holds the calculated state for a table.  This renderer state
   can be passed around and used for rendering/printing more data later.
-- Renamed Table.write to Table.print (same for write_row).
-- Renamed Table(column_spec=None) to just columns.
-- Table(column_spec) is now optional.
+- Renamed `Table.write` to `Table.print` (same for `write_row`).
+- Renamed `Table(column_spec=None)` to just columns.
+- `Table(column_spec)` is now optional.
   
 ### Fixed
 - Table handling for vtml strings that overflow.
@@ -117,7 +121,8 @@
 - First stable release
 
 
-[unreleased]: https://github.com/mayfield/shellish/compare/v0.9.0...HEAD
+[unreleased]: https://github.com/mayfield/shellish/compare/v1...HEAD
+[1]: https://github.com/mayfield/shellish/compare/v0.9.0...v1
 [0.9.0]: https://github.com/mayfield/shellish/compare/v0.8.0...v0.9.0
 [0.8.0]: https://github.com/mayfield/shellish/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/mayfield/shellish/compare/v0.6.0...v0.7.0
