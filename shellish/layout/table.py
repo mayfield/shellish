@@ -214,6 +214,7 @@ class Table(object):
             ex_group.add_argument('%s%s' % (prefix, name), dest='table_format',
                                   action='store_const', const=name,
                                   help=inspect.getdoc(renderer))
+
         def ns2table(ns):
             return {
                 "renderer": ns.table_format
@@ -238,6 +239,7 @@ class Table(object):
         if 'no-footer' not in excludes:
             group.add_argument('%sno-footer' % prefix, dest='no_table_footer',
                                action='store_true', help="Hide table footer.")
+
         def ns2table(ns):
             return {
                 "column_mask": ns.table_columns,

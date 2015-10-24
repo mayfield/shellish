@@ -59,7 +59,7 @@ class VTMLParser(html.parser.HTMLParser):
     }
 
     escape = ('&',)
-    escape_setinal_base = 0xe2c6 # protected by PAU
+    escape_setinal_base = 0xe2c6  # protected by PAU
 
     def __init__(self, *args, **kwargs):
         escape_tuples = enumerate(self.escape, self.escape_setinal_base)

@@ -67,7 +67,7 @@ class Eventer(object):
                 event_stack.remove(x)
                 break
         else:
-            raise KeyError('Listener not found for "%s": %s'  % (event,
+            raise KeyError('Listener not found for "%s": %s' % (event,
                            callback))
 
     def remove_listener(self, *args, **kwargs):
