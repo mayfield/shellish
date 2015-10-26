@@ -2,6 +2,11 @@
 
 
 ## [Unreleased] - unreleased
+### Fixed
+- `treeprint` can now print any standard python data types.
+
+### Added
+- `treeprint` takes a `file` argument like `vtmlprint` and friends.
 
 
 ## [1] - 2015-10-24

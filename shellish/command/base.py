@@ -7,31 +7,13 @@ import argparse
 import collections
 import functools
 import inspect
-import io
 import itertools
-import os
-import os.path
 import re
 import shlex
 import shutil
-import sys
 import textwrap
 import time
-import traceback
-from . import completer, shell, layout, eventing
-
-
-def linebuffered_stdout():
-    """ Always line buffer stdout so pipes and redirects are CLI friendly. """
-    if sys.stdout.line_buffering:
-        return sys.stdout
-    orig = sys.stdout
-    new = type(orig)(orig.buffer, encoding=orig.encoding, errors=orig.errors,
-                     line_buffering=True)
-    new.mode = orig.mode
-    return new
-
-sys.stdout = linebuffered_stdout()
+from .. import completer, layout, eventing, session
 
 
 def parse_docstring(entity):
@@ -112,7 +94,7 @@ class Command(eventing.Eventer):
     desc = None
     ArgumentParser = ShellishParser
     ArgumentFormatter = VTMLHelpFormatter
-    Shell = shell.Shell
+    Session = session.Session
 
     def setup_args(self, parser):
         """ Subclasses should provide any setup for their parsers here. """
@@ -145,9 +127,9 @@ class Command(eventing.Eventer):
             self.title = title or alt_title
         if not self.desc or desc:
             self.desc = desc or alt_desc
-        self.shell = None
         self.subcommands = collections.OrderedDict()
         self.default_subcommand = None
+        self.session = None
         self.context_keys = set()
         self.inject_context(context)
         self.parent = parent
@@ -157,12 +139,23 @@ class Command(eventing.Eventer):
         self.setup_args(self.argparser)
         self.fire_event('setup_args', self.argparser)
 
+    def ensure_session(self):
+        if self.session is None:
+            self.attach_session()
+
+    def parse_args(self, argv=None):
+        """ Return an argparse.Namespace of the argv string or sys.argv if
+        argv is None. """
+        arg_input = shlex.split(argv) if argv is not None else None
+        self.ensure_session()
+        return self.argparser.parse_args(arg_input)
+
     def __call__(self, args=None, argv=None):
         """ If a subparser is present and configured  we forward invocation to
         the correct subcommand method. If all else fails we call run(). """
+        self.ensure_session()
         if args is None:
-            arg_input = shlex.split(argv) if argv is not None else None
-            args = self.argparser.parse_args(arg_input)
+            args = self.parse_args(argv)
         commands = self.get_commands_from(args)
         self.last_invoke = time.monotonic()
         if self.subparsers:
@@ -191,6 +184,18 @@ class Command(eventing.Eventer):
             self.fire_event('postrun', args, result)
             self.fire_class_event('postrun', args, result)
             return result
+
+    def default_config(self):
+        """ Can be overridden to provide a 1 level deep dictionary of config
+        values.  Theses values are optionally overridden by the end-user via
+        the session's load_config routine, that essentially looks for an INI
+        file where the `[section]` is the `.prog` value for this command. """
+        return {}
+
+    def config(self, section=None):
+        """ Return the merged end-user configuration for this command or a
+        specific section if set in `section`. """
+        return self.session.config[self.prog if section is None else section]
 
     @property
     def parent(self):
@@ -246,13 +251,6 @@ class Command(eventing.Eventer):
             command.argparser._defaults['command%d' % value] = command
         self._depth = value
 
-    def interact(self):
-        """ Run this command in shell mode.  Note that this loops until the
-        user quits the session. """
-        shell = self.Shell(self)
-        self.inject_context(shell=shell)
-        shell.cmdloop()
-
     def add_argument(self, *args, complete=None, parser=None, **kwargs):
         """ Allow cleaner action supplementation. """
         if parser is None:
@@ -287,33 +285,35 @@ class Command(eventing.Eventer):
         return self.ArgumentParser(self.name, description=fulldesc,
                                    formatter_class=self.ArgumentFormatter)
 
-    def complete_wrap(self, *args, **kwargs):
-        """ Readline eats exceptions raised by completer functions. """
-        try:
-            return self._complete_wrap(*args, **kwargs)
-        except BaseException as e:
-            traceback.print_exc()
-            raise e
+    def attach_session(self):
+        """ Create a session and inject it as context for this command and any
+        subcommands. """
+        assert self.session is None
+        cmd = self
+        while cmd.parent:
+            cmd = cmd.parent
+        session = self.Session(cmd)
+        cmd.inject_context(session=session)
+        return session
 
-    def _complete_wrap(self, text, line, begin, end):
+    def complete(self, text, line, begin, end):
         """ Get and format completer choices.  Note that all internal calls to
-        completer functions must use [frozen]set()s but this wrapper has to
-        return a list to satisfy cmd.Cmd. """
+        completer functions must use [frozen]set()s. """
         self.fire_event('precomplete', text, line, begin, end)
-        choices = self.complete(text, line, begin, end)
+        choices = self._complete(text, line, begin, end)
         sz = len(choices)
         if sz == 1:
             # XXX: This is pretty bad logic here.  In reality we need much
             # more complicated escape handling and imbalanced quote support.
-            return [shlex.quote(x) for x in choices]
+            return set(shlex.quote(x) for x in choices)
         elif sz > 2:
             # We don't need the sentinel choice to prevent completion
             # when there is already more than 1 choice.
             choices -= {completer.ActionCompleter.sentinel}
         self.fire_event('postcomplete', choices)
-        return list(choices)
+        return choices
 
-    def complete(self, text, line, begin, end):
+    def _complete(self, text, line, begin, end):
         """ Do naive argument parsing so the completer has better ability to
         understand expansion rules. """
         line = line[:end]  # Ignore characters following the cursor.
@@ -381,7 +381,6 @@ class Command(eventing.Eventer):
                     break
                 elif not x_action.full:
                     choices |= x_action(self, text, fullargs)
-
         return choices
 
     def split_line(self, line):
@@ -449,206 +448,37 @@ class Command(eventing.Eventer):
         self.subparsers._name_parser_map[command.name] = command.argparser
         self.subcommands[command.name] = command
 
+    def remove_subcommand(self, command=None, name=None):
+        if name is None:
+            if command is None:
+                raise TypeError('A command or name is required')
+            name = command.name
+        command = self.subcommands.pop(name)
+        del self.subparsers._name_parser_map[name]
+        for action in self.subparsers._choices_actions:
+            if action.dest == name:
+                break
+        else:
+            raise RuntimeError("Subparser action not found for subcommand")
+        self.subparsers._choices_actions.remove(action)
+        command.session = None
+        command.parent = None
+
     def __getitem__(self, item):
         return self.subcommands[item]
 
 Command.add_class_events(['prerun', 'postrun'])
 
 
-class SystemCompletionSetup(Command):
-    """ Generate a bash/zsh compatible completion script.
+class InteractiveCommandMixin(object):
+    """ Command mixin that uses an interactive session and its run routine
+    will loop forever running subcommands. """
 
-    Typically this command is run once and concatenated to your .<shell>rc
-    file so completion targets for your shellish command can work from your
-    system shell.  The idea is lifted directly from npm-completion. """
-
-    name = 'completion'
-
-    script_header = '''
-        ###-begin-%(prog)s-%(name)s-###
-        #
-        # %(prog)s command %(name)s script
-        #
-        # Installation: %(prog)s %(name)s >> ~/.%(shell)src
-        #
-    '''
-
-    script_body = {
-        'bash': '''
-            _%(prog)s_%(name)s() {
-                local words cword
-                cword="$COMP_CWORD"
-                words=("${COMP_WORDS[@]}")
-                local si="$IFS"
-                IFS=$'\\n' COMPREPLY=($(COMP_CWORD="$cword" \\
-                                     COMP_LINE="$COMP_LINE" \\
-                                     %(prog)s %(name)s --seed "${words[@]}" \\
-                                     2>/dev/null)) || return $?
-                IFS="$si"
-            }
-            complete -o nospace -F _%(prog)s_%(name)s %(prog)s
-        ''',
-        'zsh': '''
-            _%(prog)s_%(name)s() {
-                local si=$IFS
-                compadd -- $(COMP_CWORD=$((CURRENT-1)) \\
-                             COMP_LINE=$BUFFER \\
-                             %(prog)s %(name)s -S '' --seed "${words[@]}" \\
-                             2>/dev/null)
-                IFS=$si
-            }
-            compdef _%(prog)s_%(name)s %(name)s
-        '''
-    }
-
-    script_footer = '''###-end-%(prog)s-$(name)s-###'''
-
-    def setup_args(self, parser):
-        self.add_argument('--seed', nargs=argparse.REMAINDER)
-        super().setup_args(parser)
+    Session = session.InteractiveSession
 
     def run(self, args):
-        if not args.seed:
-            return self.show_setup()
-        seed = args.seed
-        prog = seed.pop(0)
-        index = int(os.getenv('COMP_CWORD')) - 1
-        line = os.getenv('COMP_LINE')[len(prog) + 1:]
-        begin = len(' '.join(seed[:index]))
-        end = len(line)
-        shell = self.Shell(self.parent)
-        if begin > 0:
-            try:
-                compfunc = getattr(shell, 'complete_' + seed[0])
-            except AttributeError:
-                compfunc = shell.completedefault
-        else:
-            compfunc = shell.completenames
-        for x in compfunc(seed[index], line, begin, end):
-            print(x)
-
-    def show_setup(self):
-        """ Provide a helper script for the user to setup completion. """
-        shell = os.getenv('SHELL')
-        if not shell:
-            raise SystemError("No $SHELL env var found")
-        shell = os.path.basename(shell)
-        if shell not in self.script_body:
-            raise SystemError("Unsupported shell: %s" % shell)
-        tplvars = {
-            "prog": '-'.join(self.prog.split()[:-1]),
-            "shell": shell,
-            "name": self.name
-        }
-        print(self.trim(self.script_header % tplvars))
-        print(self.trim(self.script_body[shell] % tplvars))
-        print(self.trim(self.script_footer % tplvars))
-
-    def trim(self, text):
-        """ Trim whitespace indentation from text. """
-        lines = text.splitlines()
-        firstline = lines[0] or lines[1]
-        indent = len(firstline) - len(firstline.lstrip())
-        return '\n'.join(x[indent:] for x in lines if x.strip())
+        self.session.run_loop()
 
 
-class AutoCommand(Command):
-    """ Auto command ABC.  This command wraps a generic function and tries
-    to map the function signature to a parser configuration.  Use the
-    @autocommand decorator to use it. """
-
-    def __init__(self, *args, func=None, **kwargs):
-        self.func = func
-        super().__init__(*args, **kwargs)
-
-    def run(self, args):
-        """ Convert the unordered args into function arguments. """
-        args = vars(args)
-        positionals = []
-        keywords = {}
-        for action in self.argparser._actions:
-            if not hasattr(action, 'label'):
-                continue
-            if action.label == 'positional':
-                positionals.append(args[action.dest])
-            elif action.label == 'varargs':
-                positionals.extend(args[action.dest])
-            elif action.label == 'keyword':
-                keywords[action.dest] = args[action.dest]
-            elif action.label == 'varkwargs':
-                kwpairs = iter(args[action.dest] or [])
-                for key in kwpairs:
-                    try:
-                        key, value = key.split('=', 1)
-                    except ValueError:
-                        value = next(kwpairs)
-                        key = key.strip('-')
-                    keywords[key] = value
-        return self.func(*positionals, **keywords)
-
-    def setup_args(self, default_parser):
-        sig = inspect.signature(self.func)
-        got_keywords = False
-        for name, param in sig.parameters.items():
-            label = ''
-            options = {}
-            help = None
-            parser = default_parser
-            if param.annotation is not sig.empty:
-                options['type'] = param.annotation
-            elif param.default not in (sig.empty, None):
-                options['type'] = type(param.default)
-            if param.kind in (param.POSITIONAL_OR_KEYWORD,
-                              param.KEYWORD_ONLY):
-                if param.kind == param.KEYWORD_ONLY or \
-                   param.default is not sig.empty:
-                    if isinstance(param.default, io.IOBase):
-                        defvalue = param.default.name
-                    else:
-                        defvalue = str(param.default)
-                    help = "(default: %s)" % defvalue
-                    name = '--%s' % name
-                    label = 'keyword'
-                    got_keywords = True
-                else:
-                    label = 'positional'
-            elif param.kind == param.VAR_POSITIONAL:
-                if got_keywords:
-                    # Logically impossible to handle this since keyword
-                    # arguments are always expressed as key/value pairs and
-                    # this language feature is based on giving a keyword
-                    # argument by just its position.
-                    raise ValueError("Unsupported function signature: %s" %
-                                     sig)
-                help = "variable positional args"
-                options['nargs'] = '*'
-                name = '*%s' % name
-                label = 'varargs'
-            elif param.kind == param.VAR_KEYWORD:
-                options['nargs'] = argparse.REMAINDER
-                name = '--%s' % name
-                label = 'varkwargs'
-                help = 'variable key/value args [[--key value] || ' \
-                       '[key=value] ...]'
-            if param.default not in (sig.empty, None):
-                options['default'] = param.default
-            if help:
-                options['help'] = help
-            if options.get('type'):
-                try:
-                    options['metavar'] = options['type'].__name__.upper()
-                except:
-                    pass
-            action = parser.add_argument(name, **options)
-            action.label = label
-
-
-def autocommand(func):
-    """ A simplified decorator for making a single function a Command
-    instance.  In the future this will leverage PEP0484 to do really smart
-    function parsing and conversion to argparse actions. """
-    name = func.__name__
-    title, desc = parse_docstring(func)
-    if not title:
-        title = 'Auto command for: %s' % name
-    return AutoCommand(title=title, desc=desc, name=name, func=func)
+class InteractiveCommand(InteractiveCommandMixin, Command):
+    pass

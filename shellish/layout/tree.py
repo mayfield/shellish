@@ -60,7 +60,7 @@ class Tree(object):
                 yield from self.render(x.children, prefix=''.join(line))
 
 
-def treeprint(data, render_only=False, **options):
+def treeprint(data, render_only=False, file=None, **options):
     """ Render a tree structure based on generic python containers. The keys
     should be titles and the values are children of the node or None if it's
     an empty leaf node;  Primitives are valid leaf node labels too.  E.g.
@@ -79,22 +79,31 @@ def treeprint(data, render_only=False, **options):
             }
         }
     """
-    def crawl(obj, odict=collections.OrderedDict):
-        for key, value in obj.items():
-            if isinstance(value, collections.abc.Mapping):
-                yield TreeNode(key, children=crawl(value))
-            elif isinstance(value, collections.abc.Sequence) and \
-                 not isinstance(value, str):
-                value = odict((i, x) for i, x in enumerate(value))
-                yield TreeNode(key, children=crawl(value))
-            elif value is not None:
-                yield TreeNode(key, label=value)
-            else:
-                yield TreeNode(key)
+
+    def getiter(obj):
+        if isinstance(obj, collections.abc.Mapping):
+            return obj.items()
+        elif isinstance(obj, collections.abc.Iterable) and \
+             not isinstance(obj, str):
+            return enumerate(obj)
+
+    def crawl(obj):
+        objiter = getiter(obj)
+        if objiter is None:
+            yield TreeNode(obj)
+        else:
+            for key, item in objiter:
+                if isinstance(item, collections.abc.Iterable) and \
+                   not isinstance(item, str):
+                    yield TreeNode(key, children=crawl(item))
+                elif item is None:
+                    yield TreeNode(key)
+                else:
+                    yield TreeNode(key, label=item)
     t = Tree(**options)
     render_gen = t.render(crawl(data))
     if render_only:
         return render_gen
     else:
         for x in render_gen:
-            print(x)
+            print(x, file=file)

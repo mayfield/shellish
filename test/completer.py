@@ -4,12 +4,6 @@ import shellish
 import unittest
 
 
-def setUpModule():
-    """ Instantiate shell to get readline configured. """
-    cmd = shellish.Command()
-    shellish.Shell(cmd)
-
-
 class ArgumentCompletions(unittest.TestCase):
     """ Test completion of argument keys. """
 
