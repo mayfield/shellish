@@ -11,7 +11,7 @@ import readline
 import shellish
 import sys
 import traceback
-from . import eventing, layout, command
+from . import eventing, layout
 
 
 class SessionQuit(Exception):
@@ -67,8 +67,6 @@ class InteractiveSession(Session):
 
     def __init__(self, root_command, **kwargs):
         root_command.prog = ''
-        root_command.add_subcommand(command.Help)
-        root_command.add_subcommand(command.Exit)
         super().__init__(root_command, **kwargs)
         self.setup_readline()
         raw_prompt = self.config['ui']['prompt_format']

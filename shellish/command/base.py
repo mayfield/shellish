@@ -477,6 +477,10 @@ class InteractiveCommandMixin(object):
     Session = session.InteractiveSession
 
     def run(self, args):
+        from . import interactive
+        rootcmd = self.session.root_command
+        rootcmd.add_subcommand(interactive.Help)
+        rootcmd.add_subcommand(interactive.Exit)
         self.session.run_loop()
 
 
