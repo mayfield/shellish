@@ -5,41 +5,29 @@ behavior for shellish activity.
 
 
 class Eventer(object):
-    """ Very simple event MixIn. """
+    """ Very simple event mix-in. """
 
-    class_events = {
-        'init': []
-    }
+    include_listener_aliases = True
 
     def __new__(cls, *args, **kwargs):
         instance = super().__new__(cls)
-        instance.events = {}
-        cls.fire_class_event('init', instance)
+        instance.__events = {}
+        if instance.include_listener_aliases:
+            instance.on = instance.add_listener
+            instance.un = instance.remove_listener
         return instance
 
-    @staticmethod
-    def _add_events(events, adding):
-        """ Add events to an events object. """
-        for x in adding:
-            events.setdefault(x, [])
-
-    def add_events(self, events):
+    def add_events(self, adding):
         """ Setup events for this instance.  Just a list of strings. """
-        return self._add_events(self.events, events)
+        for x in adding:
+            self.__events.setdefault(x, [])
 
-    @classmethod
-    def add_class_events(cls, events):
-        """ Setup events for this class.  Just a list of strings. """
-        return cls._add_events(cls.class_events, events)
-
-    @staticmethod
-    def _add_listener(events, event, callback, single=False, priority=None):
-        event_stack = events[event]
-        if priority is None:
-            try:
-                priority = event_stack[-1]['priority'] + 1
-            except IndexError:
-                priority = 1
+    def add_listener(self, event, callback, single=False, priority=1):
+        """ Add a callback to an event list so it will be run at this event's
+        firing. If single is True, the event is auto-removed after the first
+        invocation. Priority can be used to jump ahead or behind other
+        callback invocations."""
+        event_stack = self.__events[event]
         event_stack.append({
             "callback": callback,
             "single": single,
@@ -47,19 +35,11 @@ class Eventer(object):
         })
         event_stack.sort(key=lambda x: x['priority'])
 
-    def add_listener(self, *args, **kwargs):
-        return self._add_listener(self.events, *args, **kwargs)
-
-    @classmethod
-    def add_class_listener(cls, *args, **kwargs):
-        return cls._add_listener(cls.class_events, *args, **kwargs)
-
-    @staticmethod
-    def _remove_listener(events, event, callback, single=None, priority=None):
-        """ Remove the event listener matching the signature used for adding
-        it.  This will remove at most one entry meeting the signature
+    def remove_listener(self, event, callback, single=None, priority=None):
+        """ Remove the event listener matching the same signature used for
+        adding it.  This will remove AT MOST one entry meeting the signature
         requirements. """
-        event_stack = events[event]
+        event_stack = self.__events[event]
         for x in event_stack:
             if x['callback'] == callback and \
                (single is None or x['single'] == single) and \
@@ -70,29 +50,14 @@ class Eventer(object):
             raise KeyError('Listener not found for "%s": %s' % (event,
                            callback))
 
-    def remove_listener(self, *args, **kwargs):
-        return self._remove_listener(self.events, *args, **kwargs)
-
-    @classmethod
-    def remove_class_listener(cls, *args, **kwargs):
-        return cls._remove_listener(cls.class_events, *args, **kwargs)
-
-    @staticmethod
-    def _fire_event(events, event, *args, **kwargs):
+    def fire_event(self, event, *args, **kwargs):
         """ Execute the listeners for this event passing any arguments
         along. """
         remove = []
-        event_stack = events[event]
+        event_stack = self.__events[event]
         for x in event_stack:
             x['callback'](*args, **kwargs)
             if x['single']:
                 remove.append(x)
         for x in remove:
             event_stack.remove(x)
-
-    def fire_event(self, *args, **kwargs):
-        return self._fire_event(self.events, *args, **kwargs)
-
-    @classmethod
-    def fire_class_event(cls, *args, **kwargs):
-        return cls._fire_event(cls.class_events, *args, **kwargs)
