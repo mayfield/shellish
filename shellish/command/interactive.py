@@ -2,10 +2,10 @@
 Command for interactive sessions only.
 """
 
-from . import base
+from . import command
 
 
-class Help(base.Command):
+class Help(command.Command):
     """ Show help for a command. """
 
     name = 'help'
@@ -51,7 +51,7 @@ class Help(base.Command):
         ap._print_message(formatter.format_help())
 
 
-class Exit(base.Command):
+class Exit(command.Command):
     """ Exit an interactive session. """
 
     name = 'exit'

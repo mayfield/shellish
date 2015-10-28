@@ -5,16 +5,20 @@ of commands as well as the implementation for interactive mode.
 
 import ast
 import configparser
+import contextlib
 import os.path
 import pdb
 import readline
 import shellish
+import shutil
 import sys
 import traceback
 from . import eventing, layout
 
+vprint = layout.vtmlprint
 
-class SessionQuit(Exception):
+
+class SessionExit(BaseException):
     pass
 
 
@@ -22,13 +26,52 @@ class Session(eventing.Eventer):
     """ The session manager for a tree of commands. """
 
     var_dir = os.path.expanduser('~')
-    exception_verbosity = 'traceback'
+    command_error_verbosity = 'traceback'
+    default_prompt_format = '[{name}] $'
+    intro = 'Type "help" or "?" to list commands and "exit" to quit.'
+    completer_delim_includes = frozenset()
+    completer_delim_excludes = frozenset('-+@:/~*')
+    pad_completion = True
 
     def __init__(self, root_command, name=None):
         self.root_command = root_command
         self.name = name or root_command.name
         self.config = self.load_config()
+        if 'alias' in self.config:
+            self.aliases = self.config['alias']
+        else:
+            self.aliases = {}
+        self.add_events(['precmd', 'postcmd'])
+        raw_prompt = self.config['ui']['prompt_format']
+        self.prompt_format = ast.literal_eval("'%s '" % raw_prompt)
         super().__init__()
+
+    def default_config(self):
+        return {
+            "ui": {
+                "prompt_format": self.default_prompt_format
+            }
+        }
+
+    def load_config(self):
+        filename = os.path.join(self.var_dir, '.%s_config' % self.name)
+        config = configparser.ConfigParser()
+        config.read_dict(self.default_config())
+        config.read_dict(self.command_default_configs())
+        config.read(filename)
+        return config
+
+    def load_history(self):
+        filename = os.path.join(self.var_dir, '.%s_history' % self.name)
+        try:
+            readline.read_history_file(filename)
+        except FileNotFoundError:
+            pass
+        return filename
+
+    def exit(self):
+        """ Can be called by commands to stop an interactive session. """
+        raise SessionExit()
 
     def map_subcommands(self, func):
         """ Run `func` against all the subcommands attached to our root
@@ -40,59 +83,91 @@ class Session(eventing.Eventer):
             yield cmd
         return map(func, crawl(self.root_command))
 
-    def load_config(self):
-        filename = os.path.join(self.var_dir, '.%s_config' % self.name)
-        config = configparser.ConfigParser()
-        config.read_dict(self.default_config())
-        config.read_dict(self.command_default_configs())
-        config.read(filename)
-        return config
-
-    def default_config(self):
-        return {}
-
     def command_default_configs(self):
         getconfig = lambda cmd: (cmd.prog, cmd.default_config())
         return dict(self.map_subcommands(getconfig))
 
+    def execute(self, command, args):
+        """ Invoke a command.  Subclasses can get fancy here if they want. """
+        return self.execute_wrap(command, args)
 
-class InteractiveSession(Session):
-    """ Interactive session mgmt. """
-
-    default_prompt_format = '[{name}] $'
-    intro = 'Type "help" or "?" to list commands and "exit" to quit.'
-    completer_delim_includes = frozenset()
-    completer_delim_excludes = frozenset('-+@:/~*')
-    pad_completion = True
-
-    def __init__(self, root_command, **kwargs):
-        root_command.prog = ''
-        super().__init__(root_command, **kwargs)
-        self.setup_readline()
-        raw_prompt = self.config['ui']['prompt_format']
-        self.prompt_format = ast.literal_eval("'%s '" % raw_prompt)
-
-    def default_config(self):
-        return {
-            "ui": {
-                "prompt_format": self.default_prompt_format
-            }
-        }
-
-    def setup_readline(self):
-        delims = set(readline.get_completer_delims())
-        delims |= self.completer_delim_includes
-        delims -= self.completer_delim_excludes
-        self.completer_delims = ''.join(delims)
-        readline.set_completer_delims(self.completer_delims)
-
-    def load_history(self):
-        filename = os.path.join(self.var_dir, '.%s_history' % self.name)
+    def execute_wrap(self, command, args):
+        """ Wrap event firing and exception conversion around command
+        execution.  Common exceptions are run through our exception
+        handler for pretty-printing or debugging and then converted to
+        SystemExit so the interpretor will exit without further ado (or be
+        caught by run_loop). """
+        self.fire_event('precmd', command, args)
         try:
-            readline.read_history_file(filename)
-        except FileNotFoundError:
-            pass
-        return filename
+            try:
+                result = command.run_wrap(args)
+            except BaseException as e:
+                self.fire_event('postcmd', command, args, exc=e)
+                raise e
+            else:
+                self.fire_event('postcmd', command, args, result=result)
+                return result
+        except KeyboardInterrupt as e:
+            raise SystemExit(1) from e
+        except SystemExit as e:
+            if e.args and not isinstance(e.args[0], int):
+                vprint("<red>%s</red>" % e)
+                raise SystemExit(1) from e
+            raise e
+        except Exception as e:
+            self.handle_command_error(command, args, e)
+            raise SystemExit(1) from e
+
+    def handle_command_error(self, command, args, exc):
+        """ Depending on how the session is configured this will print
+        information about an unhandled command exception or possibly jump
+        to some other behavior like a debugger. """
+        verbosity = self.command_error_verbosity
+        if verbosity == 'traceback':
+            self.pretty_print_exc(command, exc, show_traceback=True)
+        elif verbosity == 'debug':
+            pdb.set_trace()
+        elif verbosity == 'raise':
+            raise exc
+        elif verbosity == 'pretty':
+            self.pretty_print_exc(command, exc)
+        else:
+            raise ValueError('Unexpected exception_verbosity: %s' %
+                             verbosity)
+
+    def pretty_print_exc(self, command, exc, show_traceback=False):
+        cmdname = command.prog or command.name
+        if not show_traceback:
+            vprint("<red>Command '%s' error: %s(%s)</red>" % (cmdname,
+                   type(exc).__name__, exc))
+        else:
+            vprint("<red>Command '%s' error, traceback...</red>" % cmdname)
+            self.pretty_print_traceback(exc)
+
+    def pretty_print_traceback(self, exc, indent=0):
+        pad = '  '
+        from_msg = None
+        if exc.__cause__ is not None:
+            indent += self.pretty_print_traceback(exc.__cause__, indent)
+            from_msg = traceback._cause_message.strip()
+        elif exc.__context__ is not None and not exc.__suppress_context__:
+            indent += self.pretty_print_traceback(exc.__context__, indent)
+            from_msg = traceback._context_message.strip()
+        if from_msg:
+            vprint('\n', pad * indent, from_msg, '\n', sep='')
+        tblist = traceback.extract_tb(exc.__traceback__)
+        tbdepth = len(tblist)
+        for x in tblist:
+            print(pad * indent, end='')
+            vprint(' <dim>%2d.</dim> <cyan>File</cyan> "<blue>%s</blue>", '
+                   'line <u>%d</u>, in <b>%s</b>' % (tbdepth, x.filename,
+                   x.lineno, x.name))
+            print(pad * indent, end='')
+            vprint('       %s' % x.line)
+            tbdepth -= 1
+        print(pad * indent, end='')
+        vprint("<b><red>%s</red>: %s</b>" % (type(exc).__name__, exc))
+        return indent + 1
 
     @property
     def prompt(self):
@@ -107,7 +182,7 @@ class InteractiveSession(Session):
         }
 
     def cmd_split(self, line):
-        """ Get the command assosiated with this input line. """
+        """ Get the command associated with this input line. """
         cmd, *args = line.lstrip().split(' ', 1)
         return self.root_command.subcommands[cmd], ' '.join(args)
 
@@ -140,60 +215,59 @@ class InteractiveSession(Session):
 
     def complete_wrap(self, func, *args, **kwargs):
         """ Readline eats exceptions raised by completer functions. """
+        # Workaround readline's one-time-read of terminal width.
+        termcols = shutil.get_terminal_size()[0]
+        readline.parse_and_bind('set completion-display-width %d' % termcols)
         try:
             return func(*args, **kwargs)
-        except BaseException as e:
+        except:
             traceback.print_exc()
-            raise e
+            raise
 
     def complete_names(self, text, line, begin, end):
         return [x for x in self.root_command.subcommands
                 if x.startswith(line)]
 
-    def handle_cmd_exc(self, exc):
-        """ Do any formatting of run_loop exceptions or simply reraise if the
-        error is bad enough. """
-        if self.exception_verbosity == 'traceback':
-            self.pretty_print_exc(exc)
-            print(*traceback.format_exception(*sys.exc_info()))
-            return
-        elif self.exception_verbosity == 'debugger':
-            pdb.set_trace()
-            return
-        elif self.exception_verbosity == 'raise':
-            raise exc from None
-        elif self.exception_verbosity == 'pretty':
-            self.pretty_print_exc(exc)
-            return
-        else:
-            raise ValueError('Unexpected exception_verbosity: %s' %
-                             self.exception_verbosity)
-
-    def pretty_print_exc(self, exc):
-        layout.vtmlprint('<red>Command Error: %s</red>' % exc)
-
-    def run_loop(self):
-        history_file = self.load_history()
-        completer_save = readline.get_completer()
-        readline.set_completer(self.completer_hook)
+    @contextlib.contextmanager
+    def setup_readline(self):
         readline.parse_and_bind('tab: complete')
-        layout.vtmlprint(self.intro)
+        completer_save = readline.get_completer()
+        delims_save = readline.get_completer_delims()
+        delims = set(delims_save)
+        delims |= self.completer_delim_includes
+        delims -= self.completer_delim_excludes
+        readline.set_completer(self.completer_hook)
         try:
-            self._runloop()
+            readline.set_completer_delims(''.join(delims))
+            try:
+                yield
+            finally:
+                readline.set_completer_delims(delims_save)
         finally:
             readline.set_completer(completer_save)
+
+    def run_loop(self):
+        """ Main entry point for running in interactive mode. """
+        self.root_command.prog = ''
+        history_file = self.load_history()
+        vprint(self.intro)
+        try:
+            self.loop()
+        finally:
             readline.write_history_file(history_file)
 
-    def _runloop(self):
+    def loop(self):
+        """ Inner loop for interactive mode.  Do not call directly. """
         while True:
-            try:
-                line = input(self.prompt)
-            except EOFError:
-                print('^D')
-                break
-            except KeyboardInterrupt:
-                print()
-                continue
+            with self.setup_readline():
+                try:
+                    line = input(self.prompt)
+                except EOFError:
+                    print('^D')
+                    break
+                except KeyboardInterrupt:
+                    print()
+                    continue
             if not line.strip():
                 continue
             try:
@@ -204,15 +278,7 @@ class InteractiveSession(Session):
                 continue
             try:
                 cmd(argv=args)
-            except SessionQuit:
+            except SessionExit:
                 break
-            except KeyboardInterrupt:
-                print()
             except SystemExit as e:
-                if not str(e).isnumeric():
-                    shellish.vtmlprint('<red>%s</red>' % e, file=sys.stderr)
-            except Exception as e:
-                self.handle_cmd_exc(e)
-
-    def exit(self):
-        raise SessionQuit()
+                pass

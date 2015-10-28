@@ -14,7 +14,7 @@ def linebuffered_stdout():
 
 sys.stdout = linebuffered_stdout()
 
-from .base import *
+from .command import *
 from .autocommand import *
 from .syscomplete import *
 from .interactive import *

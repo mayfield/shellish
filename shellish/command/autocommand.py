@@ -5,10 +5,10 @@ A command class that is built from a normal function.
 import argparse
 import inspect
 import io
-from . import base
+from . import command
 
 
-class AutoCommand(base.Command):
+class AutoCommand(command.Command):
     """ Auto command ABC.  This command wraps a generic function and tries
     to map the function signature to a parser configuration.  Use the
     @autocommand decorator to use it. """
@@ -104,7 +104,7 @@ def autocommand(func):
     instance.  In the future this will leverage PEP0484 to do really smart
     function parsing and conversion to argparse actions. """
     name = func.__name__
-    title, desc = base.parse_docstring(func)
+    title, desc = command.parse_docstring(func)
     if not title:
         title = 'Auto command for: %s' % name
     return AutoCommand(title=title, desc=desc, name=name, func=func)

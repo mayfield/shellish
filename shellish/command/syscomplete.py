@@ -6,10 +6,10 @@ Currently supports bash or zsh, but mostly bash.
 
 import argparse
 import os
-from . import base
+from . import command
 
 
-class SystemCompletion(base.Command):
+class SystemCompletion(command.Command):
     """ Generate a bash/zsh compatible completion script.
 
     Typically this command is run once and concatenated to your .<shell>rc

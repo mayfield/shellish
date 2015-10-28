@@ -12,7 +12,6 @@ import re
 import shlex
 import shutil
 import textwrap
-import time
 from .. import completer, layout, eventing, session
 
 
@@ -104,7 +103,7 @@ class Command(eventing.Eventer):
         """ Hook to do something prior to invocation. """
         pass
 
-    def postrun(self, args, result, exception=None):
+    def postrun(self, args, result=None, exc=None):
         """ Hook to do something following invocation. """
         pass
 
@@ -135,29 +134,28 @@ class Command(eventing.Eventer):
         self.parent = parent
         self.subparsers = None
         self.argparser = self.create_argparser()
-        self.last_invoke = None
         self.setup_args(self.argparser)
         self.fire_event('setup_args', self.argparser)
 
-    def ensure_session(self):
+    def get_or_create_session(self):
         if self.session is None:
             self.attach_session()
+        return self.session
 
     def parse_args(self, argv=None):
         """ Return an argparse.Namespace of the argv string or sys.argv if
         argv is None. """
         arg_input = shlex.split(argv) if argv is not None else None
-        self.ensure_session()
+        self.get_or_create_session()
         return self.argparser.parse_args(arg_input)
 
     def __call__(self, args=None, argv=None):
         """ If a subparser is present and configured  we forward invocation to
         the correct subcommand method. If all else fails we call run(). """
-        self.ensure_session()
+        session = self.get_or_create_session()
         if args is None:
             args = self.parse_args(argv)
         commands = self.get_commands_from(args)
-        self.last_invoke = time.monotonic()
         if self.subparsers:
             try:
                 command = commands[self.depth]
@@ -169,20 +167,24 @@ class Command(eventing.Eventer):
                 parser = self.default_subcommand.argparser
                 parser.parse_args([], namespace=args)
                 return self(args)  # retry
-        self.fire_class_event('prerun', args)
+        return session.execute(self, args)
+
+    def run_wrap(self, args):
+        """ Wrap some standard protocol around a command's run method.  This
+        wrapper should generally never capture exceptions.  It can look at
+        them and do things but prerun and postrun should always be symmetric.
+        Any exception suppression should happen in the `session.execute`. """
         self.fire_event('prerun', args)
         self.prerun(args)
         try:
             result = self.run(args)
-        except BaseException as e:
-            self.postrun(args, None, e)
-            self.fire_event('postrun', args, None, e)
-            self.fire_class_event('postrun', args, None, e)
+        except (SystemExit, Exception) as e:
+            self.postrun(args, exc=e)
+            self.fire_event('postrun', args, exc=e)
             raise e
         else:
-            self.postrun(args, result)
-            self.fire_event('postrun', args, result)
-            self.fire_class_event('postrun', args, result)
+            self.postrun(args, result=result)
+            self.fire_event('postrun', args, result=result)
             return result
 
     def default_config(self):
@@ -466,23 +468,3 @@ class Command(eventing.Eventer):
 
     def __getitem__(self, item):
         return self.subcommands[item]
-
-Command.add_class_events(['prerun', 'postrun'])
-
-
-class InteractiveCommandMixin(object):
-    """ Command mixin that uses an interactive session and its run routine
-    will loop forever running subcommands. """
-
-    Session = session.InteractiveSession
-
-    def run(self, args):
-        from . import interactive
-        rootcmd = self.session.root_command
-        rootcmd.add_subcommand(interactive.Help)
-        rootcmd.add_subcommand(interactive.Exit)
-        self.session.run_loop()
-
-
-class InteractiveCommand(InteractiveCommandMixin, Command):
-    pass
