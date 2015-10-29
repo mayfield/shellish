@@ -2,11 +2,17 @@
 
 
 ## [Unreleased] - unreleased
+### Changed
+- Shell is now Session and does not subclass cmd.Cmd.
+
 ### Fixed
 - `treeprint` can now print any standard python data types.
+- Command exception handling is the same for interactive and non-captive
+  modes.
 
 ### Added
 - `treeprint` takes a `file` argument like `vtmlprint` and friends.
+- Support for INI config files as `.<root>_config`
 
 
 ## [1] - 2015-10-24
