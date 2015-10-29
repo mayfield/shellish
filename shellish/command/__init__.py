@@ -16,5 +16,3 @@ sys.stdout = linebuffered_stdout()
 
 from .command import *
 from .autocommand import *
-from .syscomplete import *
-from .interactive import *

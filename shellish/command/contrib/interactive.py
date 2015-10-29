@@ -2,7 +2,7 @@
 Command for interactive sessions only.
 """
 
-from . import command
+from .. import command
 
 
 class Help(command.Command):

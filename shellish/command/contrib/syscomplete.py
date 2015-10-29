@@ -6,7 +6,7 @@ Currently supports bash or zsh, but mostly bash.
 
 import argparse
 import os
-from . import command
+from .. import command
 
 
 class SystemCompletion(command.Command):

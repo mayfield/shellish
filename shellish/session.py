@@ -84,7 +84,7 @@ class Session(eventing.Eventer):
         return map(func, crawl(self.root_command))
 
     def command_default_configs(self):
-        getconfig = lambda cmd: (cmd.prog, cmd.default_config())
+        getconfig = lambda cmd: (cmd.config_section(), cmd.default_config())
         return dict(self.map_subcommands(getconfig))
 
     def execute(self, command, args):

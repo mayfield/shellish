@@ -187,6 +187,19 @@ class Command(eventing.Eventer):
             self.fire_event('postrun', args, result=result)
             return result
 
+    def config_section(self):
+        """ The string used in a .<ROOT>_config file section.  Usually this
+        is just the full prog name for a command minus the root command. """
+        names = []
+        cmd = self
+        while cmd.parent:
+            names.append(cmd.name)
+            cmd = cmd.parent
+        if not names:
+            return self.name
+        else:
+            return ' '.join(reversed(names))
+
     def default_config(self):
         """ Can be overridden to provide a 1 level deep dictionary of config
         values.  Theses values are optionally overridden by the end-user via
