@@ -70,15 +70,15 @@ class SystemCompletion(command.Command):
         line = os.getenv('COMP_LINE')[len(prog) + 1:]
         begin = len(' '.join(seed[:index]))
         end = len(line)
-        shell = self.Shell(self.parent)
         if begin > 0:
             try:
-                compfunc = getattr(shell, 'complete_' + seed[0])
-            except AttributeError:
-                compfunc = shell.completedefault
+                cmd, args = self.session.cmd_split(seed[0])
+            except KeyError:
+                return
+            cfunc = cmd.complete
         else:
-            compfunc = shell.completenames
-        for x in compfunc(seed[index], line, begin, end):
+            cfunc = self.session.complete_names
+        for x in cfunc(seed[index], line, begin, end):
             print(x)
 
     def show_setup(self):

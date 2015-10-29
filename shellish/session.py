@@ -225,8 +225,9 @@ class Session(eventing.Eventer):
             raise
 
     def complete_names(self, text, line, begin, end):
-        return [x for x in self.root_command.subcommands
-                if x.startswith(line)]
+        choices = set(self.root_command.subcommands)
+        choices |= set(self.aliases)
+        return [x for x in choices if x.startswith(line)]
 
     @contextlib.contextmanager
     def setup_readline(self):

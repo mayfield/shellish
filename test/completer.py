@@ -1,7 +1,11 @@
 
+import io
+import os
 import readline
 import shellish
+import sys
 import unittest
+from shellish.command import contrib
 
 
 class ArgumentCompletions(unittest.TestCase):
@@ -83,3 +87,40 @@ class ArgumentCompletions(unittest.TestCase):
         self.assertEqual(self.complete(cmd, '--foo value '), {'--bar'})
         self.assertEqual(self.complete(cmd, '--bar value '), {'--foo'})
         self.assertEqual(self.complete(cmd, '--bar value --foo value '), set())
+
+
+class TestSysComplete(unittest.TestCase):
+
+    def setUp(self):
+        self.stdout = sys.stdout
+        sys.stdout = io.StringIO()
+
+    def tearDown(self):
+        sys.stdout = self.stdout
+
+    def test_complete_names(self):
+        abc = shellish.Command(name='abc')
+        xyz = shellish.Command(name='xyz')
+        root = shellish.Command(name='root')
+        root.add_subcommand(abc)
+        root.add_subcommand(xyz)
+        sc = contrib.SystemCompletion()
+        root.add_subcommand(sc)
+        line = 'root a'
+        os.environ["COMP_CWORD"] = '1'
+        os.environ["COMP_LINE"] = line
+        sc(argv='--seed %s' % line)
+        self.assertEqual(sys.stdout.getvalue(), 'abc\n')
+
+    def test_complete_command_arg(self):
+        abc = shellish.Command(name='abc')
+        abc.add_argument('--foo')
+        root = shellish.Command(name='root')
+        root.add_subcommand(abc)
+        sc = contrib.SystemCompletion()
+        root.add_subcommand(sc)
+        line = 'root abc --f'
+        os.environ["COMP_CWORD"] = '2'
+        os.environ["COMP_LINE"] = line
+        sc(argv='--seed %s' % line)
+        self.assertEqual(sys.stdout.getvalue(), '--foo\n')

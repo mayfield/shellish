@@ -210,7 +210,11 @@ class Command(eventing.Eventer):
     def config(self, section=None):
         """ Return the merged end-user configuration for this command or a
         specific section if set in `section`. """
-        return self.session.config[self.prog if section is None else section]
+        section = self.config_section() if section is None else section
+        try:
+            return self.session.config[section]
+        except KeyError:
+            return {}
 
     @property
     def parent(self):
