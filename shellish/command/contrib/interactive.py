@@ -3,6 +3,7 @@ Command for interactive sessions only.
 """
 
 from .. import command
+from ... import vtml
 
 
 class Help(command.Command):
@@ -38,7 +39,6 @@ class Help(command.Command):
     def print_overview(self):
         ap = self.find_root().argparser
         formatter = ap._get_formatter()
-
         formatter.add_text(ap.description)
         for x in ap._action_groups:
             if x.title == 'subcommands':
@@ -47,8 +47,12 @@ class Help(command.Command):
                 formatter.add_arguments(x._group_actions)
                 formatter.end_section()
                 break
-        formatter.add_text(ap.epilog)
         ap._print_message(formatter.format_help())
+        print()
+        print('  ALIAS')
+        for k, v in self.session.aliases.items():
+            print('    %-13s%s %s' % (k, vtml.beststr(' ⇨', '->'),
+                  v.strip()))
 
 
 class Exit(command.Command):
