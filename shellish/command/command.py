@@ -113,8 +113,8 @@ class Command(eventing.Eventer):
         self.argparser.print_usage()
         raise SystemExit(1)
 
-    def __init__(self, parent=None, title=None, desc=None, name=None,
-                 **context):
+    def __init__(self, parent=None, title=None, desc=None, name=None, run=None,
+                 prerun=None, postrun=None, **context):
         self.add_events(['prerun', 'postrun', 'setup_args', 'precomplete',
                          'postcomplete'])
         if name:
@@ -127,6 +127,12 @@ class Command(eventing.Eventer):
             self.title = title or alt_title
         if not self.desc or desc:
             self.desc = desc or alt_desc
+        if run is not None:
+            self.run = run
+        if prerun is not None:
+            self.prerun = prerun
+        if postrun is not None:
+            self.postrun = postrun
         self.subcommands = collections.OrderedDict()
         self.default_subcommand = None
         self.session = None
