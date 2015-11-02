@@ -25,12 +25,9 @@ class Tree(object):
     tree_T = vtml.beststr('├── ', '+-- ')
     tree_vertspace = vtml.beststr('│   ', '|   ')
 
-    def __init__(self, formatter=None, sort_key=None, plain=None):
+    def __init__(self, formatter=None, sort_key=None):
         self.formatter = formatter or self.default_formatter
         self.sort_key = sort_key
-        if plain is None:
-            plain = not vtml.is_terminal()
-        self.plain = plain
 
     def default_formatter(self, node):
         if node.label is not None:
@@ -52,8 +49,7 @@ class Tree(object):
                     line.append(self.tree_T)
             else:
                 line = ['']
-            yield vtml.vtmlrender(''.join(line + [self.formatter(x)]),
-                                  plain=self.plain)
+            yield vtml.vtmlrender(''.join(line + [self.formatter(x)]))
             if x.children:
                 if prefix is not None:
                     line[-1] = '    ' if end == i else self.tree_vertspace
@@ -105,5 +101,6 @@ def treeprint(data, render_only=False, file=None, **options):
     if render_only:
         return render_gen
     else:
+        conv = lambda x: x.plain() if not file.isatty() else lambda x: x
         for x in render_gen:
-            print(x, file=file)
+            print(conv(x), file=file)

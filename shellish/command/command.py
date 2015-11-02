@@ -11,6 +11,7 @@ import itertools
 import re
 import shlex
 import shutil
+import sys
 import textwrap
 from .. import completer, layout, eventing, session
 
@@ -65,12 +66,11 @@ class ShellishParser(argparse.ArgumentParser):
 
 class VTMLHelpFormatter(argparse.HelpFormatter):
 
-    is_terminal = layout.is_terminal()
     hardline = re.compile('\n\s*\n')
 
     def vtmlrender(self, string):
         vstr = layout.vtmlrender(string)
-        return str(vstr.plain() if not self.is_terminal else vstr)
+        return str(vstr.plain() if not sys.stdout.isatty() else vstr)
 
     def start_section(self, heading):
         super().start_section(self.vtmlrender(heading))
@@ -91,6 +91,7 @@ class Command(eventing.Eventer):
     name = None
     title = None
     desc = None
+    use_pager = False
     ArgumentParser = ShellishParser
     ArgumentFormatter = VTMLHelpFormatter
     Session = session.Session
@@ -169,6 +170,14 @@ class Command(eventing.Eventer):
                 return self(args)  # retry
         return session.execute(self, args)
 
+    def get_pager(self):
+        if not self.use_pager:
+            return
+        pager = self.get_config().get('pager')
+        if pager is None:
+            pager = self.get_config('core').get('pager')
+        return pager
+
     def run_wrap(self, args):
         """ Wrap some standard protocol around a command's run method.  This
         wrapper should generally never capture exceptions.  It can look at
@@ -207,7 +216,7 @@ class Command(eventing.Eventer):
         file where the `[section]` is the `.prog` value for this command. """
         return {}
 
-    def config(self, section=None):
+    def get_config(self, section=None):
         """ Return the merged end-user configuration for this command or a
         specific section if set in `section`. """
         section = self.config_section() if section is None else section

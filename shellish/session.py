@@ -11,6 +11,7 @@ import pdb
 import readline
 import shellish
 import shutil
+import subprocess
 import sys
 import traceback
 from . import eventing, layout
@@ -50,6 +51,9 @@ class Session(eventing.Eventer):
         return {
             "ui": {
                 "prompt_format": self.default_prompt_format
+            },
+            "core": {
+                "pager": "less -X -R -F"
             }
         }
 
@@ -91,6 +95,22 @@ class Session(eventing.Eventer):
         """ Invoke a command.  Subclasses can get fancy here if they want. """
         return self.execute_wrap(command, args)
 
+    @contextlib.contextmanager
+    def stdout_pager(self, pager):
+        if not pager:
+            yield
+            return
+        p = subprocess.Popen(pager, stdin=subprocess.PIPE, shell=True,
+                             universal_newlines=True, bufsize=1)
+        p.stdin.isatty = lambda: True
+        stdout_save = sys.stdout
+        with p:
+            sys.stdout = p.stdin
+            try:
+                yield
+            finally:
+                sys.stdout = stdout_save
+
     def execute_wrap(self, command, args):
         """ Wrap event firing and exception conversion around command
         execution.  Common exceptions are run through our exception
@@ -100,7 +120,8 @@ class Session(eventing.Eventer):
         self.fire_event('precmd', command, args)
         try:
             try:
-                result = command.run_wrap(args)
+                with self.stdout_pager(command.get_pager()):
+                    result = command.run_wrap(args)
             except BaseException as e:
                 self.fire_event('postcmd', command, args, exc=e)
                 raise e

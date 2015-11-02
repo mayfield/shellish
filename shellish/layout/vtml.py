@@ -5,16 +5,7 @@ Functions for displaying content with screen aware layout.
 import functools
 import html.parser
 import itertools
-import shutil
 import sys
-
-
-def is_terminal():
-    """ Return true if the device is a terminal as apposed to a pipe or
-    file.  This is usually used to determine if vt100 or unicode characters
-    should be used or not. """
-    fallback = object()
-    return shutil.get_terminal_size((fallback, 0))[0] is not fallback
 
 
 def beststr(*strings):
