@@ -11,7 +11,6 @@ import math
 import operator
 import re
 import shutil
-import subprocess
 import sys
 import time
 from . import vtml
@@ -41,7 +40,6 @@ class Table(object):
     cliptext = vtml.beststr('…', '...')
     column_minwidth = len(cliptext)
     renderer_types = {}
-    pager = None
 
     # You probably shouldn't mess with these unless you really need custom
     # rendering performance.  Chances are you really don't and should
@@ -54,7 +52,7 @@ class Table(object):
                  clip=None, flex=True, file=None, cliptext=None,
                  column_minwidth=None, column_padding=None, column_align=None,
                  renderer=None, title=None, title_align=None, column_mask=None,
-                 hide_header=False, hide_footer=False, pager=None):
+                 hide_header=False, hide_footer=False):
         """ The .columns should be a list of width specs or a style dict.
         Width specs can be whole numbers representing fixed char widths,
         fractions representing percentages of available table width or None
@@ -150,16 +148,8 @@ class Table(object):
             self.column_align = column_align
         if title_align is not None:
             self.title_align = title_align
-        if pager is not None:
-            self.pager = pager
-        self.pager_proc = None
 
     def __enter__(self):
-        if self.pager and self.file.isatty():
-            self.pager_proc = subprocess.Popen(self.pager, shell=True,
-                                               stdin=subprocess.PIPE,
-                                               stdout=self.file,
-                                               universal_newlines=True)
         return self
 
     def __exit__(self, *exc):
@@ -168,9 +158,6 @@ class Table(object):
     def close(self, exception=None):
         if self.default_renderer:
             self.default_renderer.close(exception=exception)
-        if self.pager_proc:
-            self.pager_proc.stdin.close()
-            self.pager_proc.wait()
 
     def lookup_renderer(self, name):
         return self.renderer_types[name]
@@ -438,16 +425,13 @@ class TableRenderer(object):
         our pseudo "frozen" nature. """
         for x in ('file', 'clip', 'cliptext', 'flex', 'width', 'title',
                   'title_align', 'max_render_prefill', 'max_render_delay',
-                  'min_render_prefill', 'column_mask', 'hide_header',
-                  'pager_proc'):
+                  'min_render_prefill', 'column_mask', 'hide_header'):
             setattr(self, x, getattr(table, x))
         if not self.width:
             self.width = shutil.get_terminal_size()[0] \
                          if self.file is sys.stdout else 80
         if self.clip is None:
             self.clip = self.clip_default
-        if self.pager_proc:
-            self.file = self.pager_proc.stdin
 
     def render_data(self, data):
         """ Get the data from the raw list of objects. """
