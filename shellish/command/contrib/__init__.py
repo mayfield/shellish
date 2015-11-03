@@ -1,4 +1,4 @@
 from .syscomplete import *
 from .interactive import *
-from .showconfig import *
+from .ini import *
 from .alias import *

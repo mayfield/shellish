@@ -1,20 +1,19 @@
 """
-Show the configs used by a command tree.
+Show the INI config(s) used by a command tree.
 """
 
 from .. import command
 
 
-class ShowConfig(command.Command):
-    """ Show current command configuration.
+class Show(command.Command):
+    """ Show current INI configuration.
 
-    Commands may make use of a configuration file which is usually located in
-    your $HOME directory as .<command>_config.  The file is a standard INI
+    Programs may make use of a configuration file which is usually located in
+    your $HOME directory as .<prog>_config.  The file is a standard INI
     style config file where each `[section]` is the full path of a command
-    including spaces.
-    """
+    including spaces. """
 
-    name = 'show-config'
+    name = 'show'
 
     def setup_args(self, parser):
         self.add_argument('section', nargs='?', help='Only show config for '
@@ -37,3 +36,14 @@ class ShowConfig(command.Command):
                 for k, v in values.items():
                     print("     %s = %s" % (k, v))
                 print()
+
+
+class INI(command.Command):
+    """ INI style configuration.
+    Commands support user configuration in an INI style config file. """
+
+    name = 'ini'
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.add_subcommand(Show, default=True)
