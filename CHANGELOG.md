@@ -4,6 +4,9 @@
 ## [Unreleased] - unreleased
 ### Changed
 - Shell is now Session and does not subclass cmd.Cmd.
+- `--help` is excluded from command tab completion by default.  Other args
+  can also be excluded from command completion results by updating the
+  `Command.completion_excludes` set. 
 
 ### Fixed
 - `treeprint` can now print any standard python data types.
@@ -12,7 +15,8 @@
 
 ### Added
 - `treeprint` takes a `file` argument like `vtmlprint` and friends.
-- Support for INI config files as `.<root>_config`
+- Support for INI config files as `.<root>_config`. Also included is an
+  `ini` contrib command.
 - Paging support for commands or as a context manager.  Set `use_pager` to
   True on a `Command` to redirect stdout to a pager (usually less).
 - The `Command` class can now be given prerun, run and postrun functions to
