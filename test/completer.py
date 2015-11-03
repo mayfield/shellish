@@ -23,10 +23,9 @@ class ArgumentCompletions(unittest.TestCase):
             text = line
         return (text, line, len(line), len(line))
 
-    def complete(self, command, args, remove_help=True):
-        excludes = {'--help'} if remove_help else set()
+    def complete(self, command, args):
         line = '%s %s' % (command.prog, args)
-        return command.complete(*self.completer_sig(line)) - excludes
+        return command.complete(*self.completer_sig(line))
 
     def test_empty_shows_single_opt_arg(self):
         @shellish.autocommand
