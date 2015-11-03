@@ -73,9 +73,11 @@ class HTMLConv(html.parser.HTMLParser):
 
     def handle_start_b(self, tag, attrs):
         self.buf.append('<b>')
+    handle_start_strong = handle_start_b
 
     def handle_end_b(self, tag, attrs):
         self.buf.append('</b>')
+    handle_end_strong = handle_end_b
 
     def handle_start_u(self, tag, attrs):
         self.buf.append('<u>')
@@ -85,16 +87,21 @@ class HTMLConv(html.parser.HTMLParser):
 
     def handle_start_h1(self, tag, attrs):
         self.buf.append('\n<b>')
-
-    def handle_end_h1(self, tag, attrs):
-        self.buf.append('</b>\n\n')
-
     handle_start_h2 = handle_start_h1
     handle_start_h3 = handle_start_h1
     handle_start_h4 = handle_start_h1
+
+    def handle_end_h1(self, tag, attrs):
+        self.buf.append('</b>\n\n')
     handle_end_h2 = handle_end_h1
     handle_end_h3 = handle_end_h1
     handle_end_h4 = handle_end_h1
+
+    def handle_start_small(self, tag, attrs):
+        self.buf.append('<dim>')
+
+    def handle_end_small(self, tag, attrs):
+        self.buf.append('<dim>')
 
     def handle_start_a(self, tag, attrs):
         self.buf.append('<blue><u>')
