@@ -6,17 +6,18 @@ of commands as well as the implementation for interactive mode.
 import ast
 import configparser
 import contextlib
+import fcntl
 import os.path
 import pdb
 import readline
-import shellish
 import shutil
-import subprocess
 import sys
 import traceback
-from . import eventing, layout
+from . import eventing, layout, pager
 
-vprint = layout.vtmlprint
+
+def vprinterr(*args, **kwargs):
+    return layout.vtmlprint(*args, file=sys.stderr, **kwargs)
 
 
 class SessionExit(BaseException):
@@ -33,6 +34,7 @@ class Session(eventing.Eventer):
     completer_delim_includes = frozenset()
     completer_delim_excludes = frozenset('-+@:/~*')
     pad_completion = True
+    allow_pager = True
 
     def __init__(self, root_command, name=None):
         self.root_command = root_command
@@ -92,35 +94,16 @@ class Session(eventing.Eventer):
         return dict(self.map_subcommands(getconfig))
 
     def execute(self, command, args):
-        """ Invoke a command.  Subclasses can get fancy here if they want. """
-        return self.execute_wrap(command, args)
-
-    @contextlib.contextmanager
-    def stdout_pager(self, pager):
-        if not pager:
-            yield
-            return
-        p = subprocess.Popen(pager, stdin=subprocess.PIPE, shell=True,
-                             universal_newlines=True, bufsize=1)
-        p.stdin.isatty = lambda: True
-        stdout_save = sys.stdout
-        with p:
-            sys.stdout = p.stdin
-            try:
-                yield
-            finally:
-                sys.stdout = stdout_save
-
-    def execute_wrap(self, command, args):
-        """ Wrap event firing and exception conversion around command
-        execution.  Common exceptions are run through our exception
-        handler for pretty-printing or debugging and then converted to
-        SystemExit so the interpretor will exit without further ado (or be
-        caught by run_loop). """
+        """ Event firing and exception conversion around command execution.
+        Common exceptions are run through our exception handler for
+        pretty-printing or debugging and then converted to SystemExit so the
+        interpretor will exit without further ado (or be caught if
+        interactive). """
         self.fire_event('precmd', command, args)
         try:
             try:
-                with self.stdout_pager(command.get_pager()):
+                cmdpager = command.get_pager() if self.allow_pager else None
+                with pager.pager_redirect(cmdpager):
                     result = command.run_wrap(args)
             except BaseException as e:
                 self.fire_event('postcmd', command, args, exc=e)
@@ -128,11 +111,14 @@ class Session(eventing.Eventer):
             else:
                 self.fire_event('postcmd', command, args, result=result)
                 return result
+        except BrokenPipeError as e:
+            raise SystemExit(1) from e
         except KeyboardInterrupt as e:
+            vprinterr('^C')
             raise SystemExit(1) from e
         except SystemExit as e:
             if e.args and not isinstance(e.args[0], int):
-                vprint("<red>%s</red>" % e)
+                vprinterr("<red>%s</red>" % e)
                 raise SystemExit(1) from e
             raise e
         except Exception as e:
@@ -159,10 +145,11 @@ class Session(eventing.Eventer):
     def pretty_print_exc(self, command, exc, show_traceback=False):
         cmdname = command.prog or command.name
         if not show_traceback:
-            vprint("<red>Command '%s' error: %s(%s)</red>" % (cmdname,
-                   type(exc).__name__, exc))
+            vprinterr("<red>Command '%s' error: %s(%s)</red>" % (cmdname,
+                      type(exc).__name__, exc))
         else:
-            vprint("<red>Command '%s' error, traceback...</red>" % cmdname)
+            vprinterr("<red>Command '%s' error, traceback...</red>" %
+                      cmdname)
             self.pretty_print_traceback(exc)
 
     def pretty_print_traceback(self, exc, indent=0):
@@ -175,19 +162,19 @@ class Session(eventing.Eventer):
             indent += self.pretty_print_traceback(exc.__context__, indent)
             from_msg = traceback._context_message.strip()
         if from_msg:
-            vprint('\n', pad * indent, from_msg, '\n', sep='')
+            vprinterr('\n', pad * indent, from_msg, '\n', sep='')
         tblist = traceback.extract_tb(exc.__traceback__)
         tbdepth = len(tblist)
         for x in tblist:
-            print(pad * indent, end='')
-            vprint(' <dim>%2d.</dim> <cyan>File</cyan> "<blue>%s</blue>", '
-                   'line <u>%d</u>, in <b>%s</b>' % (tbdepth, x.filename,
-                   x.lineno, x.name))
-            print(pad * indent, end='')
-            vprint('       %s' % x.line)
+            vprinterr(pad * indent, end='')
+            vprinterr(' <dim>%2d.</dim> <cyan>File</cyan> "<blue>%s</blue>", '
+                      'line <u>%d</u>, in <b>%s</b>' % (tbdepth, x.filename,
+                      x.lineno, x.name))
+            vprinterr(pad * indent, end='')
+            vprinterr('       %s' % x.line)
             tbdepth -= 1
-        print(pad * indent, end='')
-        vprint("<b><red>%s</red>: %s</b>" % (type(exc).__name__, exc))
+        vprinterr(pad * indent, end='')
+        vprinterr("<b><red>%s</red>: %s</b>" % (type(exc).__name__, exc))
         return indent + 1
 
     @property
@@ -252,6 +239,8 @@ class Session(eventing.Eventer):
 
     @contextlib.contextmanager
     def setup_readline(self):
+        """ Configure our tab completion settings for a context and then
+        restore them to previous settings on exit. """
         readline.parse_and_bind('tab: complete')
         completer_save = readline.get_completer()
         delims_save = readline.get_completer_delims()
@@ -272,7 +261,7 @@ class Session(eventing.Eventer):
         """ Main entry point for running in interactive mode. """
         self.root_command.prog = ''
         history_file = self.load_history()
-        vprint(self.intro)
+        layout.vtmlprint(self.intro)
         try:
             self.loop()
         finally:
@@ -285,18 +274,17 @@ class Session(eventing.Eventer):
                 try:
                     line = input(self.prompt)
                 except EOFError:
-                    print('^D')
+                    vprinterr('^D')
                     break
                 except KeyboardInterrupt:
-                    print()
+                    vprinterr('^C')
                     continue
             if not line.strip():
                 continue
             try:
                 cmd, args = self.cmd_split(line)
             except KeyError as e:
-                shellish.vtmlprint('<red>Invalid command: %s</red>' % e,
-                                   file=sys.stderr)
+                vprinterr('<red>Invalid command: %s</red>' % e)
                 continue
             try:
                 cmd(argv=args)

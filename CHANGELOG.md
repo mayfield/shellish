@@ -13,6 +13,14 @@
 ### Added
 - `treeprint` takes a `file` argument like `vtmlprint` and friends.
 - Support for INI config files as `.<root>_config`
+- Paging support for commands or as a context manager.  Set `use_pager` to
+  True on a `Command` to redirect stdout to a pager (usually less).
+- The `Command` class can now be given prerun, run and postrun functions to
+  be used for the resultant instance.
+
+### Removed
+- `vtml.is_terminal` is gone and should be replaced with direct calls to
+  sys.stdout.isatty().
 
 
 ## [1] - 2015-10-24
