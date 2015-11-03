@@ -12,7 +12,7 @@ import readline
 import shutil
 import sys
 import traceback
-from . import eventing, layout, pager
+from . import eventing, layout, paging
 
 
 def _vprinterr(*args, **kwargs):
@@ -101,9 +101,12 @@ class Session(eventing.Eventer):
         self.fire_event('precmd', command, args)
         try:
             try:
-                cmdpager = command.get_pager() if self.allow_pager else None
-                with pager.pager_redirect(cmdpager):
-                    result = command.run_wrap(args)
+                if self.allow_pager:
+                    pspec = command.get_pager_spec()
+                    pager = paging.pager_redirect(**pspec)
+                else:
+                    pager = None
+                result = command.run_wrap(args, pager)
             except BaseException as e:
                 self.fire_event('postcmd', command, args, exc=e)
                 raise e
@@ -178,7 +181,8 @@ class Session(eventing.Eventer):
 
     @property
     def prompt(self):
-        return self.prompt_format.format(**self.prompt_info())
+        raw = self.prompt_format.format(**self.prompt_info())
+        return layout.vtmlrender(raw)
 
     def prompt_info(self):
         """ Return a dictionary of items that can be substituted into the

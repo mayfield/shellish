@@ -4,4 +4,4 @@ from .layout import *
 from .data import *
 from .eventing import *
 from .session import *
-from .pager import *
+from .paging import *

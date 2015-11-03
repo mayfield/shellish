@@ -5,6 +5,7 @@ used by all commands.
 
 import argparse
 import collections
+import configparser
 import functools
 import inspect
 import itertools
@@ -95,6 +96,7 @@ class Command(eventing.Eventer):
     ArgumentParser = ShellishParser
     ArgumentFormatter = VTMLHelpFormatter
     Session = session.Session
+    completion_excludes = {'--help'}
 
     def setup_args(self, parser):
         """ Subclasses should provide any setup for their parsers here. """
@@ -176,15 +178,24 @@ class Command(eventing.Eventer):
                 return self(args)  # retry
         return session.execute(self, args)
 
-    def get_pager(self):
-        if not self.use_pager:
-            return
-        pager = self.get_config().get('pager')
-        if pager is None:
-            pager = self.get_config('core').get('pager')
-        return pager
+    def get_pager_spec(self):
+        """ Find the best pager settings for this command.  If the user has
+        specified overrides in the INI config file we prefer those. """
+        self_config = self.get_config()
+        pagercmd = self_config.get('pager')
+        istty = self_config.getboolean('pager_istty')
+        core_config = self.get_config('core')
+        if pagercmd is None:
+            pagercmd = core_config.get('pager')
+        if istty is None:
+            istty = core_config.get('pager_istty')
+        return {
+            "enabled": self.use_pager,
+            "pagercmd": pagercmd,
+            "istty": istty
+        }
 
-    def run_wrap(self, args):
+    def run_wrap(self, args, pager):
         """ Wrap some standard protocol around a command's run method.  This
         wrapper should generally never capture exceptions.  It can look at
         them and do things but prerun and postrun should always be symmetric.
@@ -192,7 +203,11 @@ class Command(eventing.Eventer):
         self.fire_event('prerun', args)
         self.prerun(args)
         try:
-            result = self.run(args)
+            if pager:
+                with pager:
+                    result = self.run(args)
+            else:
+                result = self.run(args)
         except (SystemExit, Exception) as e:
             self.postrun(args, exc=e)
             self.fire_event('postrun', args, exc=e)
@@ -229,7 +244,7 @@ class Command(eventing.Eventer):
         try:
             return self.session.config[section]
         except KeyError:
-            return {}
+            return configparser.SectionProxy(self.session.config, section)
 
     @property
     def parent(self):
@@ -335,6 +350,7 @@ class Command(eventing.Eventer):
         completer functions must use [frozen]set()s. """
         self.fire_event('precomplete', text, line, begin, end)
         choices = self._complete(text, line, begin, end)
+        choices -= self.completion_excludes
         sz = len(choices)
         if sz == 1:
             # XXX: This is pretty bad logic here.  In reality we need much

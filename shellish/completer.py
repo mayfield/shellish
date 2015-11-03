@@ -57,13 +57,16 @@ class ActionCompleter(object):
         system would otherwise throw away the results. """
         args_ns = argparse.Namespace()
         stderr_save = argparse._sys.stderr
+        stdout_save = argparse._sys.stdout
         argparse._sys.stderr = os.devnull
+        argparse._sys.stdout = os.devnull
         try:
             command.argparser.parse_known_args(args, args_ns)
         except BaseException:
             pass
         finally:
             argparse._sys.stderr = stderr_save
+            argparse._sys.stdout = stdout_save
         return args_ns
 
     def parse_nargs(self, nargs):
