@@ -6,7 +6,6 @@ of commands as well as the implementation for interactive mode.
 import ast
 import configparser
 import contextlib
-import fcntl
 import os.path
 import pdb
 import readline
@@ -16,7 +15,7 @@ import traceback
 from . import eventing, layout, pager
 
 
-def vprinterr(*args, **kwargs):
+def _vprinterr(*args, **kwargs):
     return layout.vtmlprint(*args, file=sys.stderr, **kwargs)
 
 
@@ -61,7 +60,7 @@ class Session(eventing.Eventer):
 
     def load_config(self):
         filename = os.path.join(self.var_dir, '.%s_config' % self.name)
-        config = configparser.ConfigParser()
+        config = configparser.ConfigParser(interpolation=None)
         config.read_dict(self.default_config())
         config.read_dict(self.command_default_configs())
         config.read(filename)
@@ -114,11 +113,11 @@ class Session(eventing.Eventer):
         except BrokenPipeError as e:
             raise SystemExit(1) from e
         except KeyboardInterrupt as e:
-            vprinterr('^C')
+            _vprinterr('^C')
             raise SystemExit(1) from e
         except SystemExit as e:
             if e.args and not isinstance(e.args[0], int):
-                vprinterr("<red>%s</red>" % e)
+                _vprinterr("<red>%s</red>" % e)
                 raise SystemExit(1) from e
             raise e
         except Exception as e:
@@ -145,11 +144,11 @@ class Session(eventing.Eventer):
     def pretty_print_exc(self, command, exc, show_traceback=False):
         cmdname = command.prog or command.name
         if not show_traceback:
-            vprinterr("<red>Command '%s' error: %s(%s)</red>" % (cmdname,
-                      type(exc).__name__, exc))
+            _vprinterr("<red>Command '%s' error: %s(%s)</red>" % (cmdname,
+                       type(exc).__name__, exc))
         else:
-            vprinterr("<red>Command '%s' error, traceback...</red>" %
-                      cmdname)
+            _vprinterr("<red>Command '%s' error, traceback...</red>" %
+                       cmdname)
             self.pretty_print_traceback(exc)
 
     def pretty_print_traceback(self, exc, indent=0):
@@ -162,19 +161,19 @@ class Session(eventing.Eventer):
             indent += self.pretty_print_traceback(exc.__context__, indent)
             from_msg = traceback._context_message.strip()
         if from_msg:
-            vprinterr('\n', pad * indent, from_msg, '\n', sep='')
+            _vprinterr('\n', pad * indent, from_msg, '\n', sep='')
         tblist = traceback.extract_tb(exc.__traceback__)
         tbdepth = len(tblist)
         for x in tblist:
-            vprinterr(pad * indent, end='')
-            vprinterr(' <dim>%2d.</dim> <cyan>File</cyan> "<blue>%s</blue>", '
-                      'line <u>%d</u>, in <b>%s</b>' % (tbdepth, x.filename,
-                      x.lineno, x.name))
-            vprinterr(pad * indent, end='')
-            vprinterr('       %s' % x.line)
+            _vprinterr(pad * indent, end='')
+            _vprinterr(' <dim>%2d.</dim> <cyan>File</cyan> "<blue>%s</blue>", '
+                       'line <u>%d</u>, in <b>%s</b>' % (tbdepth, x.filename,
+                       x.lineno, x.name))
+            _vprinterr(pad * indent, end='')
+            _vprinterr('       %s' % x.line)
             tbdepth -= 1
-        vprinterr(pad * indent, end='')
-        vprinterr("<b><red>%s</red>: %s</b>" % (type(exc).__name__, exc))
+        _vprinterr(pad * indent, end='')
+        _vprinterr("<b><red>%s</red>: %s</b>" % (type(exc).__name__, exc))
         return indent + 1
 
     @property
@@ -274,17 +273,17 @@ class Session(eventing.Eventer):
                 try:
                     line = input(self.prompt)
                 except EOFError:
-                    vprinterr('^D')
+                    _vprinterr('^D')
                     break
                 except KeyboardInterrupt:
-                    vprinterr('^C')
+                    _vprinterr('^C')
                     continue
             if not line.strip():
                 continue
             try:
                 cmd, args = self.cmd_split(line)
             except KeyError as e:
-                vprinterr('<red>Invalid command: %s</red>' % e)
+                _vprinterr('<red>Invalid command: %s</red>' % e)
                 continue
             try:
                 cmd(argv=args)
