@@ -17,6 +17,8 @@
   True on a `Command` to redirect stdout to a pager (usually less).
 - The `Command` class can now be given prerun, run and postrun functions to
   be used for the resultant instance.
+- Added `--no-clip` and `--table-width` options to `Table` `Command`
+  arguments.
 
 ### Removed
 - `vtml.is_terminal` is gone and should be replaced with direct calls to
