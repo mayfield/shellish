@@ -4,6 +4,7 @@ import os
 import readline
 import shellish
 import sys
+import tempfile
 import unittest
 from shellish.command import contrib
 
@@ -25,6 +26,7 @@ class ArgumentCompletions(unittest.TestCase):
 
     def complete(self, command, args):
         line = '%s %s' % (command.prog, args)
+        command.get_or_create_session()
         return command.complete(*self.completer_sig(line))
 
     def test_empty_shows_single_opt_arg(self):
@@ -86,6 +88,23 @@ class ArgumentCompletions(unittest.TestCase):
         self.assertEqual(self.complete(cmd, '--foo value '), {'--bar'})
         self.assertEqual(self.complete(cmd, '--bar value '), {'--foo'})
         self.assertEqual(self.complete(cmd, '--bar value --foo value '), set())
+
+    def test_file_arguments(self):
+        cmd = shellish.Command()
+        cmd.add_file_argument('--foo')
+        with tempfile.TemporaryDirectory() as tmp:
+            files = {'./one', './two'}
+            cwd = os.getcwd()
+            os.chdir(tmp)
+            try:
+                for x in files:
+                    open(x, 'w').close()
+                self.assertEqual(self.complete(cmd, '--foo'), {'--foo'})
+                self.assertEqual(self.complete(cmd, '--foo '), files)
+                self.assertEqual(self.complete(cmd, '--foo o'), {'./one'})
+                self.assertEqual(self.complete(cmd, '--foo NO'), set())
+            finally:
+                os.chdir(cwd)
 
 
 class TestSysComplete(unittest.TestCase):

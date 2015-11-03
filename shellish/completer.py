@@ -129,7 +129,7 @@ class ActionCompleter(object):
         except FileNotFoundError:
             return frozenset()
         choices = []
-        shell = self.calling_command.shell
+        session = self.calling_command.session
         for f in scanner:
             try:
                 if (not name or f.name.startswith(name)) and \
@@ -137,7 +137,7 @@ class ActionCompleter(object):
                     choices.append(f)
             except PermissionError:
                 pass
-        prevent_pad = shell.pad_completion and len(choices) == 1 and \
+        prevent_pad = session.pad_completion and len(choices) == 1 and \
                       choices[0].is_dir()
         names = [os.path.join(dirname, x.name) for x in choices]
         if prevent_pad:

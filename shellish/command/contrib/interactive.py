@@ -15,7 +15,6 @@ class Help(command.Command):
         self.add_argument('command', nargs='?', complete=self.command_choices,
                           help='Command name to show help for.')
 
-
     def command_choices(self, prefix, args):
         return frozenset(x for x in self.parent.subcommands
                          if x.startswith(prefix))
