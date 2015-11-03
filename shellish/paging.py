@@ -34,12 +34,12 @@ def pager_process(pagercmd, stdout=None, stderr=None):
 
 
 @contextlib.contextmanager
-def pager_redirect(pagercmd=None, enabled=True, istty=None, file=None):
+def pager_redirect(pagercmd=None, istty=None, file=None):
     """ Redirect output to file/stdout to a pager process.  Care is taken to
     restore the controlling tty stdio files to their original state. """
     if file is None:
         file = sys.stdout
-    if not enabled or not pagercmd or not file.isatty():
+    if not pagercmd or not file.isatty():
         yield
         return
     with tty_restoration():

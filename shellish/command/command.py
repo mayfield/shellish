@@ -14,7 +14,7 @@ import shlex
 import shutil
 import sys
 import textwrap
-from .. import completer, layout, eventing, session
+from .. import completer, layout, eventing, session, paging
 
 
 def parse_docstring(entity):
@@ -190,21 +190,21 @@ class Command(eventing.Eventer):
         if istty is None:
             istty = core_config.get('pager_istty')
         return {
-            "enabled": self.use_pager,
             "pagercmd": pagercmd,
             "istty": istty
         }
 
-    def run_wrap(self, args, pager):
+    def run_wrap(self, args):
         """ Wrap some standard protocol around a command's run method.  This
         wrapper should generally never capture exceptions.  It can look at
         them and do things but prerun and postrun should always be symmetric.
         Any exception suppression should happen in the `session.execute`. """
         self.fire_event('prerun', args)
         self.prerun(args)
+
         try:
-            if pager:
-                with pager:
+            if self.session.allow_pager and self.use_pager:
+                with paging.pager_redirect(**self.get_pager_spec()):
                     result = self.run(args)
             else:
                 result = self.run(args)

@@ -12,7 +12,7 @@ import readline
 import shutil
 import sys
 import traceback
-from . import eventing, layout, paging
+from . import eventing, layout
 
 
 def _vprinterr(*args, **kwargs):
@@ -101,12 +101,7 @@ class Session(eventing.Eventer):
         self.fire_event('precmd', command, args)
         try:
             try:
-                if self.allow_pager:
-                    pspec = command.get_pager_spec()
-                    pager = paging.pager_redirect(**pspec)
-                else:
-                    pager = None
-                result = command.run_wrap(args, pager)
+                result = command.run_wrap(args)
             except BaseException as e:
                 self.fire_event('postcmd', command, args, exc=e)
                 raise e
