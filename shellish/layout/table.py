@@ -201,13 +201,20 @@ class Table(object):
     @classmethod
     def attach_format_arguments(cls, parser, prefix='--', excludes=None,
                                 title=None, desc=None):
+        excludes = excludes or set()
         title = 'table output format' if title is None else title
         desc = 'Selection of output formats for table display.  The ' \
                'default behavior is to detect the output device\'s ' \
                'capabilities.' if desc is None else desc
         group = parser.add_argument_group(title, description=desc)
+        if 'no_clip' not in excludes:
+            group.add_argument('--no-clip', action='store_true',
+                               help='Do not clip the table output to fit the '
+                               'screen.')
+        if 'table_width' not in excludes:
+            group.add_argument('--table-width', type=int, metavar='COLS',
+                               help='Specify the table width in columns.')
         ex_group = group.add_mutually_exclusive_group()
-        excludes = excludes or set()
         for name, renderer in sorted(cls.renderer_types.items()):
             if name in excludes:
                 continue
@@ -216,9 +223,14 @@ class Table(object):
                                   help=inspect.getdoc(renderer))
 
         def ns2table(ns):
-            return {
-                "renderer": ns.table_format
+            opts = {
+                "renderer": ns.table_format,
             }
+            if ns.no_clip:
+                opts['clip'] = False
+            if ns.table_width:
+                opts['width'] = ns.table_width
+            return opts
         return ns2table
 
     @classmethod
@@ -231,7 +243,7 @@ class Table(object):
         excludes = excludes or set()
         if 'columns' not in excludes:
             group.add_argument('%scolumns' % prefix, dest='table_columns',
-                               metavar="COLUMN_INDEX", nargs='+', type=int,
+                               metavar="COL_INDEX", nargs='+', type=int,
                                help="Only show specific columns.")
         if 'no-header' not in excludes:
             group.add_argument('%sno-header' % prefix, dest='no_table_header',
