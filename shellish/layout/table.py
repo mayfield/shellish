@@ -231,9 +231,9 @@ class Table(object):
             opts = {}
             if ns.no_clip:
                 opts['clip'] = False
-            if ns.table_width:
+            if ns.table_width is not None:
                 opts['width'] = ns.table_width
-            if ns.table_padding:
+            if ns.table_padding is not None:
                 opts['column_padding'] = ns.table_padding
             if ns.table_align:
                 opts['column_align'] = ns.table_align
@@ -469,7 +469,7 @@ class TableRenderer(object):
                   'title_align', 'max_render_prefill', 'max_render_delay',
                   'min_render_prefill', 'column_mask', 'hide_header'):
             setattr(self, x, getattr(table, x))
-        if not self.width:
+        if self.width is None:
             self.width = shutil.get_terminal_size()[0] \
                          if self.file is sys.stdout else 80
         if self.clip is None:
