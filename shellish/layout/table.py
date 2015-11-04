@@ -173,7 +173,9 @@ class Table(object):
     @classmethod
     def attach_arguments(cls, parser, prefix='--', skip_formats=False,
                          format_excludes=None, format_title=None,
-                         format_desc=None, skip_filters=False,
+                         format_desc=None, skip_render=False,
+                         render_excludes=None, render_title=None,
+                         render_desc=None, skip_filters=False,
                          filter_excludes=None, filter_title=None,
                          filter_desc=None):
         """ Attach argparse arguments to an argparse parser/group with table
@@ -186,6 +188,10 @@ class Table(object):
             attach = cls.attach_format_arguments
             convs.append(attach(parser, prefix, format_excludes, format_title,
                                 format_desc))
+        if not skip_render:
+            attach = cls.attach_render_arguments
+            convs.append(attach(parser, prefix, render_excludes, render_title,
+                                render_desc))
         if not skip_filters:
             attach = cls.attach_filter_arguments
             convs.append(attach(parser, prefix, filter_excludes, filter_title,
@@ -199,13 +205,11 @@ class Table(object):
         return argparse_ns_to_table_opts
 
     @classmethod
-    def attach_format_arguments(cls, parser, prefix='--', excludes=None,
+    def attach_render_arguments(cls, parser, prefix='--', excludes=None,
                                 title=None, desc=None):
         excludes = excludes or set()
-        title = 'table output format' if title is None else title
-        desc = 'Selection of output formats for table display.  The ' \
-               'default behavior is to detect the output device\'s ' \
-               'capabilities.' if desc is None else desc
+        title = 'table render settings' if title is None else title
+        desc = 'Overrides for table render settings.' if desc is None else desc
         group = parser.add_argument_group(title, description=desc)
         if 'no_clip' not in excludes:
             group.add_argument('--no-clip', action='store_true',
@@ -214,6 +218,37 @@ class Table(object):
         if 'table_width' not in excludes:
             group.add_argument('--table-width', type=int, metavar='COLS',
                                help='Specify the table width in columns.')
+        if 'table_padding' not in excludes:
+            group.add_argument('--table-padding', type=int, metavar='COLS',
+                               help='Specify whitespace padding for each '
+                               'table column in characters.')
+        if 'table_align' not in excludes:
+            group.add_argument('--table-align', metavar='JUSTIFY',
+                               choices={'left', 'center', 'right'},
+                               help='Table column justification.')
+
+        def ns2table(ns):
+            opts = {}
+            if ns.no_clip:
+                opts['clip'] = False
+            if ns.table_width:
+                opts['width'] = ns.table_width
+            if ns.table_padding:
+                opts['column_padding'] = ns.table_padding
+            if ns.table_align:
+                opts['column_align'] = ns.table_align
+            return opts
+        return ns2table
+
+    @classmethod
+    def attach_format_arguments(cls, parser, prefix='--', excludes=None,
+                                title=None, desc=None):
+        excludes = excludes or set()
+        title = 'table output format' if title is None else title
+        desc = 'Selection of output formats for table display.  The ' \
+               'default behavior is to detect the output device\'s ' \
+               'capabilities.' if desc is None else desc
+        group = parser.add_argument_group(title, description=desc)
         ex_group = group.add_mutually_exclusive_group()
         for name, renderer in sorted(cls.renderer_types.items()):
             if name in excludes:
@@ -223,14 +258,9 @@ class Table(object):
                                   help=inspect.getdoc(renderer))
 
         def ns2table(ns):
-            opts = {
+            return {
                 "renderer": ns.table_format,
             }
-            if ns.no_clip:
-                opts['clip'] = False
-            if ns.table_width:
-                opts['width'] = ns.table_width
-            return opts
         return ns2table
 
     @classmethod
