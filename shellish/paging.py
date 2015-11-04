@@ -4,6 +4,8 @@ Support for directing output to a pager and then restoring tty state.
 
 import contextlib
 import fcntl
+import os
+import shutil
 import subprocess
 import sys
 import termios
@@ -28,9 +30,13 @@ def pager_process(pagercmd, stdout=None, stderr=None):
         stdout = sys.stdout
     if stderr is None:
         stderr = sys.stderr
+    env = os.environ.copy()
+    w, h = shutil.get_terminal_size()
+    env['COLUMNS'] = str(w)
+    env['LINES'] = str(h)
     return subprocess.Popen(pagercmd, shell=True, universal_newlines=True,
                             bufsize=1, stdin=subprocess.PIPE, stdout=stdout,
-                            stderr=stderr)
+                            stderr=stderr, env=env)
 
 
 @contextlib.contextmanager
@@ -43,32 +49,23 @@ def pager_redirect(pagercmd=None, istty=None, file=None):
         yield
         return
     with tty_restoration():
-        p = pager_process(pagercmd)
-        if istty is None:
-            p.stdin.isatty = file.isatty
-        else:
-            p.stdin.isatty = lambda: istty
         stdout_save = sys.stdout
-        sys.stdout = p.stdin
-        import time # XXX
-        t = time.monotonic
+        p = pager_process(pagercmd)
         try:
-            print(t(), "START YIELD", file=sys.stderr)
+            if istty is None:
+                p.stdin.isatty = file.isatty
+            else:
+                p.stdin.isatty = lambda: istty
+            sys.stdout = p.stdin
             yield
-            print(t(), "END YIELD", file=sys.stderr)
         finally:
-            print(t(), "REDIR FINALLY", file=sys.stderr)
             sys.stdout = stdout_save
             try:
                 p.stdin.close()
             except BrokenPipeError:
-                print(t(), "PIPE CRACK", file=sys.stderr)
                 pass
-            print(t(), "CHWCK RUN ll", p.poll(), file=sys.stderr)
             while p.poll() is None:
-                print(t(), 'poolllll', file=sys.stderr)
                 try:
                     p.wait()
                 except KeyboardInterrupt:
-                    print(t(), "CTRL C LATER mf", file=sys.stderr)
-            print(t(), "DONEDONE RUN ll", file=sys.stderr)
+                    pass

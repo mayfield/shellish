@@ -201,7 +201,6 @@ class Command(eventing.Eventer):
         Any exception suppression should happen in the `session.execute`. """
         self.fire_event('prerun', args)
         self.prerun(args)
-
         try:
             if self.session.allow_pager and self.use_pager:
                 with paging.pager_redirect(**self.get_pager_spec()):

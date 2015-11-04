@@ -109,9 +109,10 @@ class Session(eventing.Eventer):
                 self.fire_event('postcmd', command, args, result=result)
                 return result
         except BrokenPipeError as e:
+            _vprinterr('<dim><red>...broken pipe...</red></dim>')
             raise SystemExit(1) from e
         except KeyboardInterrupt as e:
-            _vprinterr('^C')
+            _vprinterr('<dim><red>...interrupted...</red></dim>')
             raise SystemExit(1) from e
         except SystemExit as e:
             if e.args and not isinstance(e.args[0], int):
@@ -142,7 +143,7 @@ class Session(eventing.Eventer):
     def pretty_print_exc(self, command, exc, show_traceback=False):
         cmdname = command.prog or command.name
         if not show_traceback:
-            _vprinterr("<red>Command '%s' error: %s(%s)</red>" % (cmdname,
+            _vprinterr("<red>Command '%s' error: %s - %s</red>" % (cmdname,
                        type(exc).__name__, exc))
         else:
             _vprinterr("<red>Command '%s' error, traceback...</red>" %
