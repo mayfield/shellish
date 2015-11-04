@@ -2,6 +2,12 @@
 
 
 ## [Unreleased] - unreleased
+### Changed
+- `Command.add_file_argument` provides a factory function instead of a file
+  handle to the args namespace to avoid spontaneously creating files.
+
+### Fixed
+- File argument tab completion works in Python 3.4.
 
 
 ## [2] - 2015-11-04
