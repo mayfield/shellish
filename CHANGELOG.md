@@ -2,6 +2,9 @@
 
 
 ## [Unreleased] - unreleased
+
+
+## [2] - 2015-11-04
 ### Changed
 - Shell is now Session and does not subclass cmd.Cmd.
 - `--help` is excluded from command tab completion by default.  Other args
@@ -146,7 +149,8 @@
 - First stable release
 
 
-[unreleased]: https://github.com/mayfield/shellish/compare/v1...HEAD
+[unreleased]: https://github.com/mayfield/shellish/compare/v2...HEAD
+[2]: https://github.com/mayfield/shellish/compare/v1...v2
 [1]: https://github.com/mayfield/shellish/compare/v0.9.0...v1
 [0.9.0]: https://github.com/mayfield/shellish/compare/v0.8.0...v0.9.0
 [0.8.0]: https://github.com/mayfield/shellish/compare/v0.7.0...v0.8.0
