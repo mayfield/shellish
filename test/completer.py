@@ -1,6 +1,7 @@
 
 import io
 import os
+import platform
 import readline
 import shellish
 import sys
@@ -89,6 +90,7 @@ class ArgumentCompletions(unittest.TestCase):
         self.assertEqual(self.complete(cmd, '--bar value '), {'--foo'})
         self.assertEqual(self.complete(cmd, '--bar value --foo value '), set())
 
+    @unittest.skipUnless(platform.python_version() >= '3.5.0', 'py35 required')
     def test_file_arguments(self):
         cmd = shellish.Command()
         cmd.add_file_argument('--foo')
