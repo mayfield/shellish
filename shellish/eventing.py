@@ -11,7 +11,7 @@ class Eventer(object):
 
     def __new__(cls, *args, **kwargs):
         instance = super().__new__(cls)
-        instance.__events = {}
+        instance._events = {}
         if instance.include_listener_aliases:
             instance.on = instance.add_listener
             instance.un = instance.remove_listener
@@ -20,14 +20,14 @@ class Eventer(object):
     def add_events(self, adding):
         """ Setup events for this instance.  Just a list of strings. """
         for x in adding:
-            self.__events.setdefault(x, [])
+            self._events.setdefault(x, [])
 
     def add_listener(self, event, callback, single=False, priority=1):
         """ Add a callback to an event list so it will be run at this event's
         firing. If single is True, the event is auto-removed after the first
         invocation. Priority can be used to jump ahead or behind other
         callback invocations."""
-        event_stack = self.__events[event]
+        event_stack = self._events[event]
         event_stack.append({
             "callback": callback,
             "single": single,
@@ -39,7 +39,7 @@ class Eventer(object):
         """ Remove the event listener matching the same signature used for
         adding it.  This will remove AT MOST one entry meeting the signature
         requirements. """
-        event_stack = self.__events[event]
+        event_stack = self._events[event]
         for x in event_stack:
             if x['callback'] == callback and \
                (single is None or x['single'] == single) and \
@@ -54,7 +54,7 @@ class Eventer(object):
         """ Execute the listeners for this event passing any arguments
         along. """
         remove = []
-        event_stack = self.__events[event]
+        event_stack = self._events[event]
         for x in event_stack:
             x['callback'](*args, **kwargs)
             if x['single']:
