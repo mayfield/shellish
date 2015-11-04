@@ -125,21 +125,21 @@ class ActionCompleter(object):
         if not dirname:
             dirname = '.'
         try:
-            scanner = os.scandir(dirname)
+            dirs = os.listdir(dirname)
         except FileNotFoundError:
             return frozenset()
         choices = []
         session = self.calling_command.session
-        for f in scanner:
+        for f in dirs:
             try:
-                if (not name or f.name.startswith(name)) and \
-                   not f.name.startswith('.'):
+                if (not name or f.startswith(name)) and \
+                   not f.startswith('.'):
                     choices.append(f)
             except PermissionError:
                 pass
         prevent_pad = session.pad_completion and len(choices) == 1 and \
-                      choices[0].is_dir()
-        names = [os.path.join(dirname, x.name) for x in choices]
+                      os.path.isdir(choices[0])
+        names = [os.path.join(dirname, x) for x in choices]
         if prevent_pad:
             names.append(names[0] + '/')
         return frozenset(names)

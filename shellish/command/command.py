@@ -3,17 +3,13 @@ The merger of argparse and cmd goes here.  This holds the main base class
 used by all commands.
 """
 
-import argparse
 import collections
 import configparser
 import functools
 import inspect
 import itertools
-import re
 import shlex
-import shutil
-import sys
-import textwrap
+from . import supplement
 from .. import completer, layout, eventing, session, paging
 
 
@@ -34,56 +30,6 @@ def parse_docstring(entity):
     return title, desc
 
 
-class ShellishParser(argparse.ArgumentParser):
-
-    def _get_formatter(self):
-        width = shutil.get_terminal_size()[0] - 2
-        return self.formatter_class(prog=self.prog, width=width)
-
-    def format_help(self):
-        formatter = self._get_formatter()
-        formatter.add_usage(self.usage, self._actions,
-                            self._mutually_exclusive_groups)
-        if '\n' in self.description:
-            desc = self.description.split('\n\n', 1)
-            if len(desc) == 2 and '\n' not in desc[0]:
-                title, about = desc
-            else:
-                title, about = None, desc
-        else:
-            title, about = self.description, None
-        if title:
-            formatter.add_text('<b><u>%s</u></b>' % title)
-        if about:
-            formatter.add_text(about)
-        for action_group in self._action_groups:
-            formatter.start_section('<b>%s</b>' % action_group.title)
-            formatter.add_text(action_group.description)
-            formatter.add_arguments(action_group._group_actions)
-            formatter.end_section()
-        formatter.add_text(self.epilog)
-        return formatter.format_help()
-
-
-class VTMLHelpFormatter(argparse.HelpFormatter):
-
-    hardline = re.compile('\n\s*\n')
-
-    def vtmlrender(self, string):
-        vstr = layout.vtmlrender(string)
-        return str(vstr.plain() if not sys.stdout.isatty() else vstr)
-
-    def start_section(self, heading):
-        super().start_section(self.vtmlrender(heading))
-
-    def _fill_text(self, text, width, indent):
-        r""" Reflow text but preserve hardlines (\n\n). """
-        paragraphs = self.hardline.split(str(self.vtmlrender(text)))
-        return '\n\n'.join(textwrap.fill(x, width, initial_indent=indent,
-                                         subsequent_indent=indent)
-                           for x in paragraphs)
-
-
 class Command(eventing.Eventer):
     """ The primary encapsulation for a shellish command.  Each command or
     subcommand should be an instance of this class.  The docstring for sub-
@@ -93,8 +39,8 @@ class Command(eventing.Eventer):
     title = None
     desc = None
     use_pager = False
-    ArgumentParser = ShellishParser
-    ArgumentFormatter = VTMLHelpFormatter
+    ArgumentParser = supplement.ShellishParser
+    ArgumentFormatter = supplement.VTMLHelpFormatter
     Session = session.Session
     completion_excludes = {'--help'}
 
@@ -310,9 +256,14 @@ class Command(eventing.Eventer):
 
     def add_file_argument(self, *args, mode='r', buffering=1,
                           filetype_options=None, **kwargs):
-        """ Shortcut for adding argparse.FileType based arguments. """
-        type_ = argparse.FileType(mode=mode, bufsize=buffering,
-                                  **filetype_options or {})
+        """ Add a tab-completion safe FileType argument.  This argument
+        differs from a normal argparse.FileType based argument in that the
+        value is a factory function that returns a file handle instead of
+        providing an already open file handle.  There are various reasons
+        why this is a better approach but it is also required to avoid
+        erroneous creation of files with shellish tab completion. """
+        type_ = supplement.SafeFileType(mode=mode, bufsize=buffering,
+                                        **filetype_options or {})
         return self.add_argument(*args, type=type_, **kwargs)
 
     def add_table_arguments(self, *args, parser=None, **kwargs):

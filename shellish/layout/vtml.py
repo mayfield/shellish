@@ -226,13 +226,13 @@ class VTML(object):
         if width <= self.visual_len:
             return self
         pad = (fillchar * (width - self.visual_len),)
-        return type(self)(*self.values+pad, length_hint=width)
+        return type(self)(*self.values + pad, length_hint=width)
 
     def rjust(self, width, fillchar=' '):
         if width <= self.visual_len:
             return self
         pad = (fillchar * (width - self.visual_len),)
-        return type(self)(*pad+self.values, length_hint=width)
+        return type(self)(*pad + self.values, length_hint=width)
 
     def center(self, width, fillchar=' '):
         """ Center strings so uneven padding always favors trailing pad.  When

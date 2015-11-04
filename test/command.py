@@ -1,5 +1,8 @@
 
+import os
 import shellish
+import sys
+import tempfile
 import unittest
 
 
@@ -80,3 +83,68 @@ class CommandCompose(unittest.TestCase):
         a = shellish.Command()
         b = shellish.Command(name='okay')
         a.add_subcommand(b)
+
+
+class CommandFileArguments(unittest.TestCase):
+
+    def setUp(self):
+        self._cwd_save = os.getcwd()
+        self.tmp = tempfile.TemporaryDirectory()
+        os.chdir(self.tmp.name)
+
+    def tearDown(self):
+        os.chdir(self._cwd_save)
+        self.tmp.cleanup()
+
+    def test_file_argument_defaults_not_found(self):
+        def run(args):
+            self.assertRaises(FileNotFoundError, args.foo)
+        cmd = shellish.Command(run=run)
+        cmd.add_file_argument('--foo')
+        cmd(argv='--foo doesnotexist')
+
+    def test_file_argument_defaults_stdio(self):
+        stdin_setinel = object()  # ensure it's unique and uncached
+        def run(args):
+            self.assertIs(args.foo(), stdin_setinel)
+        cmd = shellish.Command(run=run)
+        cmd.add_file_argument('--foo')
+        stdin = sys.stdin
+        sys.stdin = stdin_setinel
+        try:
+            cmd(argv='--foo -')
+        finally:
+            sys.stdin = stdin
+
+    def test_file_argument_stdout(self):
+        def run(args):
+            self.assertIs(args.foo(), sys.stdout)
+        cmd = shellish.Command(run=run)
+        cmd.add_file_argument('--foo', mode='w')
+        cmd(argv='--foo -')
+
+    def test_file_argument_read_found(self):
+        def run(args):
+            f = args.foo()
+            try:
+                self.assertTrue(f.name.endswith('exists'))
+                self.assertTrue(f.mode, 'r')
+            finally:
+                f.close()
+        open('exists', 'w').close()
+        cmd = shellish.Command(run=run)
+        cmd.add_file_argument('--foo', mode='r')
+        cmd(argv='--foo exists')
+        cmd(argv='--foo ./exists')
+
+    def test_file_argument_create(self):
+        def run(args):
+            f = args.foo()
+            try:
+                self.assertEqual(f.name, 'makethis')
+                f.write('ascii is okay')
+            finally:
+                f.close()
+        cmd = shellish.Command(run=run)
+        cmd.add_file_argument('--foo', mode='w')
+        cmd(argv='--foo makethis')
