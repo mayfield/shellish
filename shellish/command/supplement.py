@@ -3,6 +3,7 @@ Supplemental code for stdlib package(s).  Namely argparse.
 """
 
 import argparse
+import contextlib
 import re
 import shutil
 import sys
@@ -62,17 +63,27 @@ class VTMLHelpFormatter(argparse.HelpFormatter):
 
 class SafeFileType(argparse.FileType):
     """ A side-effect free version of argparse.FileType that prevents erroneous
-    creation of files when doing tab completion.  Arguments that use this
-    type are given a factory function that will return the file asked for by
-    the user instead of an open file handle. """
+    creation of files when doing tab completion.  Arguments that use this type
+    are given a factory function that will return a context manager for the
+    underlying file. """
 
     def __call__(self, string):
-        if string == '-':
-            if 'r' in self._mode:
-                return lambda: sys.stdin
-            elif 'w' in self._mode:
-                return lambda: sys.stdout
+
+        @contextlib.contextmanager
+        def safe_file_context():
+            if string == '-':
+                if 'r' in self._mode:
+                    stdio = sys.stdin
+                elif 'w' in self._mode:
+                    stdio = sys.stdout
+                else:
+                    raise ValueError("Invalid mode for stdio: %s" % self._mode)
+                try:
+                    yield stdio
+                finally:
+                    stdio.flush()
             else:
-                raise ValueError("Invalid mode for stdio: %s" % self._mode)
-        return lambda: open(string, self._mode, self._bufsize, self._encoding,
-                            self._errors)
+                with open(string, self._mode, self._bufsize, self._encoding,
+                          self._errors) as f:
+                    yield f
+        return safe_file_context

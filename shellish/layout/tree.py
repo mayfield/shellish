@@ -4,6 +4,7 @@ Tree layout.
 
 import collections
 import collections.abc
+import sys
 from . import vtml
 
 
@@ -83,7 +84,15 @@ def treeprint(data, render_only=False, file=None, **options):
              not isinstance(obj, str):
             return enumerate(obj)
 
-    def crawl(obj):
+    def cycle_check(item, seen=set()):
+        item_id = id(item)
+        if item_id in seen:
+            raise ValueError('Cycle detected for: %s' % repr(item))
+        else:
+            seen.add(item_id)
+
+    def crawl(obj, cc=cycle_check):
+        cc(obj)
         objiter = getiter(obj)
         if objiter is None:
             yield TreeNode(obj)
@@ -101,6 +110,7 @@ def treeprint(data, render_only=False, file=None, **options):
     if render_only:
         return render_gen
     else:
-        conv = lambda x: x.plain() if not file.isatty() else lambda x: x
+        file = sys.stdout if file is None else file
+        conv = (lambda x: x.plain()) if not file.isatty() else (lambda x: x)
         for x in render_gen:
             print(conv(x), file=file)

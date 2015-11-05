@@ -2,7 +2,9 @@
 import argparse
 import io
 import itertools
+import os
 import statistics
+import sys
 import unittest
 from shellish import layout as L
 
@@ -629,3 +631,64 @@ class HTMLConversion(unittest.TestCase):
             self.assertEqual(L.html2vtml('<a %s="link.here">foo</A>' % x),
                              self.a_format % 'foo (link.here)')
 
+
+class TreeData(unittest.TestCase):
+    """ Tests to make sure tree doesn't blow up with various data inputs. """
+
+    def setUp(self):
+        self.stdout = sys.stdout
+        sys.stdout = open(os.devnull, 'w')
+
+    def tearDown(self):
+        sys.stdout.close()
+        sys.stdout = self.stdout
+
+    def test_treeprint_empty(self):
+        self.assertRaises(TypeError, L.treeprint)
+
+    def test_treeprint_dict(self):
+        L.treeprint({})
+        L.treeprint({1:1})
+        L.treeprint({"1":1})
+        L.treeprint({"1":"1"})
+        L.treeprint({1:"1"})
+        L.treeprint({"a":"1"})
+        L.treeprint({"a":1})
+        L.treeprint({"a": [1, 2]})
+        L.treeprint({"a": ["1", 2]})
+        L.treeprint({"a": ["1", "a"]})
+        L.treeprint({"a": {}})
+        L.treeprint({"a": {1:1}})
+
+    def test_treeprint_cyclic(self):
+        looper = {}
+        looper['myself'] = looper
+        self.assertRaises(ValueError, L.treeprint, looper)
+
+    def test_treeprint_list(self):
+        L.treeprint([])
+        L.treeprint([1,2])
+        L.treeprint(["a","b"])
+        L.treeprint([{},"b"])
+        L.treeprint([{1,2},"b"])
+        L.treeprint([[]])
+        L.treeprint([[1]])
+        L.treeprint([1,[1]])
+        L.treeprint([None])
+
+    def test_treeprint_tuple(self):
+        L.treeprint(())
+        L.treeprint((1,2))
+        L.treeprint(("a","b"))
+        L.treeprint(({}, {}))
+
+    def test_treeprint_numbers(self):
+        L.treeprint(1)
+        L.treeprint(0)
+
+    def test_treeprint_odd(self):
+        L.treeprint(None)
+        L.treeprint(True)
+        L.treeprint(False)
+        L.treeprint(object())
+        L.treeprint(object)
