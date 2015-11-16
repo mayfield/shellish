@@ -2,6 +2,9 @@
 
 
 ## [Unreleased] - unreleased
+
+
+## [2.1] - 2015-11-16
 ### Changed
 - `Command.add_file_argument` provides a factory function instead of a file
   handle to the args namespace to avoid spontaneously creating files.
@@ -157,7 +160,8 @@
 - First stable release
 
 
-[unreleased]: https://github.com/mayfield/shellish/compare/v2...HEAD
+[unreleased]: https://github.com/mayfield/shellish/compare/v2.1...HEAD
+[2.1]: https://github.com/mayfield/shellish/compare/v2...v2.1
 [2]: https://github.com/mayfield/shellish/compare/v1...v2
 [1]: https://github.com/mayfield/shellish/compare/v0.9.0...v1
 [0.9.0]: https://github.com/mayfield/shellish/compare/v0.8.0...v0.9.0
