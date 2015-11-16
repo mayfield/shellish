@@ -43,6 +43,7 @@ class Command(eventing.Eventer):
     ArgumentFormatter = supplement.VTMLHelpFormatter
     Session = session.Session
     completion_excludes = {'--help'}
+    arg_label_fmt = '__command[%d]__'
 
     def setup_args(self, parser):
         """ Subclasses should provide any setup for their parsers here. """
@@ -241,8 +242,8 @@ class Command(eventing.Eventer):
         """ Update ourself and any of our subcommands. """
         for command in self.subcommands.values():
             command.depth = value + 1
-            del command.argparser._defaults['command%d' % self._depth]
-            command.argparser._defaults['command%d' % value] = command
+            del command.argparser._defaults[self.arg_label_fmt % self._depth]
+            command.argparser._defaults[self.arg_label_fmt % value] = command
         self._depth = value
 
     def add_argument(self, *args, complete=None, parser=None, **kwargs):
@@ -417,7 +418,7 @@ class Command(eventing.Eventer):
         commands = []
         for i in itertools.count(0):
             try:
-                commands.append(getattr(args, 'command%d' % i))
+                commands.append(getattr(args, self.arg_label_fmt % i))
             except AttributeError:
                 break
         return commands
@@ -442,7 +443,7 @@ class Command(eventing.Eventer):
         help_fmt = '%s (default)' if default else '%s'
         help = help_fmt % command.title
         command.prog = '%s %s' % (self.prog, command.name)
-        command.argparser._defaults['command%d' % self.depth] = command
+        command.argparser._defaults[self.arg_label_fmt % self.depth] = command
         action = self.subparsers._ChoicesPseudoAction(command.name, (), help)
         self.subparsers._choices_actions.append(action)
         self.subparsers._name_parser_map[command.name] = command.argparser

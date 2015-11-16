@@ -5,6 +5,8 @@
 ### Changed
 - `Command.add_file_argument` provides a factory function instead of a file
   handle to the args namespace to avoid spontaneously creating files.
+- Renamed special `command%d` argument used for command specification to
+  `__command[%d]__`.
 
 ### Fixed
 - File argument tab completion works in Python 3.4.
