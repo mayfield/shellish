@@ -7,14 +7,9 @@ behavior for shellish activity.
 class Eventer(object):
     """ Very simple event mix-in. """
 
-    include_listener_aliases = True
-
     def __new__(cls, *args, **kwargs):
         instance = super().__new__(cls)
         instance._events = {}
-        if instance.include_listener_aliases:
-            instance.on = instance.add_listener
-            instance.un = instance.remove_listener
         return instance
 
     def add_events(self, adding):
