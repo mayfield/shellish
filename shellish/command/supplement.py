@@ -21,7 +21,7 @@ class ShellishParser(argparse.ArgumentParser):
         formatter = self._get_formatter()
         formatter.add_usage(self.usage, self._actions,
                             self._mutually_exclusive_groups)
-        if '\n' in self.description:
+        if self.description and '\n' in self.description:
             desc = self.description.split('\n\n', 1)
             if len(desc) == 2 and '\n' not in desc[0]:
                 title, about = desc
