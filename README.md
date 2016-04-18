@@ -5,7 +5,7 @@ _*Command-line/shell mashup framework*_
 [![Maturity](https://img.shields.io/pypi/status/shellish.svg)](https://pypi.python.org/pypi/shellish)
 [![License](https://img.shields.io/pypi/l/shellish.svg)](https://pypi.python.org/pypi/shellish)
 [![Change Log](https://img.shields.io/badge/change-log-blue.svg)](https://github.com/mayfield/shellish/blob/master/CHANGELOG.md)
-[![Build Status](https://semaphoreci.com/api/v1/projects/d925ee35-bede-4cc1-bbb8-17a738b84cfa/533600/shields_badge.svg)](https://semaphoreci.com/mayfield/shellish)
+[![Build Status](https://semaphoreci.com/api/v1/mayfield/shellish/branches/master/shields_badge.svg)](https://semaphoreci.com/mayfield/shellish)
 [![Version](https://img.shields.io/pypi/v/shellish.svg)](https://pypi.python.org/pypi/shellish)
 
 
