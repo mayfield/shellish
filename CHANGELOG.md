@@ -2,6 +2,12 @@
 
 
 ## [Unreleased] - unreleased
+### Changed
+- Support for setting custom config and history file names instead of
+  `.(name)_config` and `.(name)_history` you can override the
+  `Session.config_file` and `Session.history_file` properties.  Combined
+  with setting `Session.var_dir` this allows you to store config and history
+  in a sub-folder of the users home dir a la, `~/.myapp/config`.
 
 
 ## [2.1] - 2015-11-16

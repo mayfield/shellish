@@ -35,6 +35,14 @@ class Session(eventing.Eventer):
     pad_completion = True
     allow_pager = True
 
+    @property
+    def config_file(self):
+        return '.%s_config' % self.name
+
+    @property
+    def history_file(self):
+        return '.%s_history' % self.name
+
     def __init__(self, root_command, name=None):
         self.root_command = root_command
         self.name = name or root_command.name
@@ -58,8 +66,9 @@ class Session(eventing.Eventer):
             }
         }
 
+
     def load_config(self):
-        filename = os.path.join(self.var_dir, '.%s_config' % self.name)
+        filename = os.path.join(self.var_dir, self.config_file)
         config = configparser.ConfigParser(interpolation=None)
         config.read_dict(self.default_config())
         config.read_dict(self.command_default_configs())
@@ -67,7 +76,7 @@ class Session(eventing.Eventer):
         return config
 
     def load_history(self):
-        filename = os.path.join(self.var_dir, '.%s_history' % self.name)
+        filename = os.path.join(self.var_dir, self.history_file)
         try:
             readline.read_history_file(filename)
         except FileNotFoundError:
