@@ -2,6 +2,9 @@
 
 
 ## [Unreleased] - unreleased
+
+
+## [2.2] - 2016-05-08
 ### Changed
 - Support for setting custom config and history file names instead of
   `.(name)_config` and `.(name)_history` you can override the
@@ -166,7 +169,8 @@
 - First stable release
 
 
-[unreleased]: https://github.com/mayfield/shellish/compare/v2.1...HEAD
+[unreleased]: https://github.com/mayfield/shellish/compare/v2.2...HEAD
+[2.2]: https://github.com/mayfield/shellish/compare/v2.1...v2.2
 [2.1]: https://github.com/mayfield/shellish/compare/v2...v2.1
 [2]: https://github.com/mayfield/shellish/compare/v1...v2
 [1]: https://github.com/mayfield/shellish/compare/v0.9.0...v1
