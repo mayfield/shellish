@@ -13,6 +13,16 @@ class AutoCommand(command.Command):
     to map the function signature to a parser configuration.  Use the
     @autocommand decorator to use it. """
 
+    falsy = {
+        'false',
+        'none',
+        'null',
+        '0',
+        'no',
+        'off',
+        'disable'
+    }
+
     def __init__(self, *args, func=None, **kwargs):
         self.func = func
         super().__init__(*args, **kwargs)
@@ -91,10 +101,18 @@ class AutoCommand(command.Command):
             if help:
                 options['help'] = help
             if options.get('type'):
-                try:
-                    options['metavar'] = options['type'].__name__.upper()
-                except:
-                    pass
+                if options['type'] is bool:
+                    if label == 'keyword':
+                        options['action'] = 'store_%s' % \
+                            str(not param.default).lower()
+                        del options['type']
+                    else:
+                        options['type'] = lambda x: x.lower() not in self.falsy
+                else:
+                    try:
+                        options['metavar'] = options['type'].__name__.upper()
+                    except:
+                        pass
             action = parser.add_argument(name, **options)
             action.label = label
 
@@ -107,4 +125,7 @@ def autocommand(func):
     title, desc = command.parse_docstring(func)
     if not title:
         title = 'Auto command for: %s' % name
+    if not desc:
+        # Prevent Command from using docstring of AutoCommand
+        desc = ' '
     return AutoCommand(title=title, desc=desc, name=name, func=func)

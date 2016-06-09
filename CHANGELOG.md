@@ -2,6 +2,9 @@
 
 
 ## [Unreleased] - unreleased
+### Fixed
+- Docstring parsing of @autocommand commands handles omitted desc lines.
+- Use `store_true` action for bool type arguments with @autocommand decorator.
 
 
 ## [2.2] - 2016-05-08

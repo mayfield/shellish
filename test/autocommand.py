@@ -189,11 +189,33 @@ class TypeTests(unittest.TestCase):
             self.assertIsInstance(one, str)
         f(argv='asdf')
 
-    def test_annotation_bool(self):
+    def test_pos_annotation_bool(self):
         @autocommand
         def f(one:bool):
             self.assertIsInstance(one, bool)
-        f(argv='anything_is_true_here_actually')
+            return one
+        for x in ('False', 'no', 'disable', '0', 'null', 'None'):
+            with self.subTest(x=x):
+                self.assertFalse(f(argv=x))
+        for x in ('1', 'yes', 'True', 'randomthing'):
+            with self.subTest(x=x):
+                self.assertTrue(f(argv=x))
+
+    def test_kw_bool_toggle(self):
+        """ Bool keywords operate like toggles.  When present on the arg line, they
+        invert the default. """
+        @autocommand
+        def f(toggle=False):
+            self.assertIsInstance(toggle, bool)
+            return toggle
+        self.assertFalse(f(argv=''))
+        self.assertTrue(f(argv='--toggle'))
+        @autocommand
+        def f(toggle=True):
+            self.assertIsInstance(toggle, bool)
+            return toggle
+        self.assertTrue(f(argv=''))
+        self.assertFalse(f(argv='--toggle'))
 
     def test_annotation_int(self):
         @autocommand

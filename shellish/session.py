@@ -66,7 +66,6 @@ class Session(eventing.Eventer):
             }
         }
 
-
     def load_config(self):
         filename = os.path.join(self.var_dir, self.config_file)
         config = configparser.ConfigParser(interpolation=None)
