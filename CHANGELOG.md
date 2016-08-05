@@ -2,6 +2,8 @@
 
 
 ## [Unreleased] - unreleased
+
+## [2.3] - 2016-08-05
 ### Fixed
 - Docstring parsing of @autocommand commands handles omitted desc lines.
 - Use `store_true` action for bool type arguments with @autocommand decorator.
@@ -172,7 +174,8 @@
 - First stable release
 
 
-[unreleased]: https://github.com/mayfield/shellish/compare/v2.2...HEAD
+[unreleased]: https://github.com/mayfield/shellish/compare/v2.3...HEAD
+[2.3]: https://github.com/mayfield/shellish/compare/v2.2...v2.3
 [2.2]: https://github.com/mayfield/shellish/compare/v2.1...v2.2
 [2.1]: https://github.com/mayfield/shellish/compare/v2...v2.1
 [2]: https://github.com/mayfield/shellish/compare/v1...v2
