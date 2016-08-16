@@ -3,11 +3,11 @@ Supplemental code for stdlib package(s).  Namely argparse.
 """
 
 import argparse
-import contextlib
 import re
 import shutil
 import sys
 import textwrap
+import warnings
 from .. import layout
 
 
@@ -61,6 +61,56 @@ class VTMLHelpFormatter(argparse.HelpFormatter):
                            for x in paragraphs)
 
 
+class SafeFileContext(object):
+    """ Used by SafeFileType to provide a file-like context manager. """
+
+    def __init__(self, ft, filename):
+        self.ft = ft
+        self.filename = filename
+        self.fd = None
+        self.is_stdio = None
+        self.used = False
+
+    def __call__(self):
+        warnings.warn("Calling the file argument is no longer required")
+        return self
+
+    def __enter__(self):
+        assert not self.used
+        self.used = True
+        if self.filename == '-':
+            self.is_stdio = True
+            if 'r' in self.ft._mode:
+                stdio = sys.stdin
+            elif 'w' in self.ft._mode:
+                stdio = sys.stdout
+            else:
+                raise ValueError("Invalid mode for stdio: %s" % self.ft._mode)
+            self.fd = stdio
+        else:
+            self.is_stdio = False
+            self.fd = open(self.filename, self.ft._mode, self.ft._bufsize,
+                           self.ft._encoding, self.ft._errors)
+        return self.fd
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        if self.fd is not None:
+            if self.is_stdio:
+                self.fd.flush()
+            else:
+                self.fd.close()
+
+    def __str__(self):
+        """ Report the last string passed into our call.  This is our candidate
+        filename but in practice it is THE filename used. """
+        return str(self.filename)
+
+    def __repr__(self):
+        """ Report the last string passed into our call.  This is our candidate
+        filename but in practice it is THE filename used. """
+        return '<%s: %s>' % (type(self).__name__, repr(self.filename))
+
+
 class SafeFileType(argparse.FileType):
     """ A side-effect free version of argparse.FileType that prevents erroneous
     creation of files when doing tab completion.  Arguments that use this type
@@ -68,22 +118,4 @@ class SafeFileType(argparse.FileType):
     underlying file. """
 
     def __call__(self, string):
-
-        @contextlib.contextmanager
-        def safe_file_context():
-            if string == '-':
-                if 'r' in self._mode:
-                    stdio = sys.stdin
-                elif 'w' in self._mode:
-                    stdio = sys.stdout
-                else:
-                    raise ValueError("Invalid mode for stdio: %s" % self._mode)
-                try:
-                    yield stdio
-                finally:
-                    stdio.flush()
-            else:
-                with open(string, self._mode, self._bufsize, self._encoding,
-                          self._errors) as f:
-                    yield f
-        return safe_file_context
+        return SafeFileContext(self, string)

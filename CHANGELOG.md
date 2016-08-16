@@ -2,6 +2,24 @@
 
 
 ## [Unreleased] - unreleased
+### Changed
+- Arguments produced by `Command.`add_file_argument` no longer need to be
+  called when used as context managers.  E.g.  In older code you would do
+
+  ```
+  with args.my_file_argument() as f:
+      pass
+  ```
+
+  The new argument can be used without the invocation..
+  ```
+  with args.my_file_argument as f:
+      pass
+  ```
+
+### Fixed
+- Useful str/repr output for `Command.add_file_argument` values.
+
 
 ## [2.3] - 2016-08-05
 ### Fixed
