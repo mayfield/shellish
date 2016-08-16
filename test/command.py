@@ -111,7 +111,7 @@ class CommandFileArguments(unittest.TestCase):
                 flushed = True
         stdin_setinel = Stdin()
         def run(args):
-            with args.foo() as f:
+            with args.foo as f:
                 self.assertIs(f, stdin_setinel)
                 self.assertFalse(flushed)
             self.assertTrue(flushed)
@@ -126,7 +126,7 @@ class CommandFileArguments(unittest.TestCase):
 
     def test_file_argument_stdout(self):
         def run(args):
-            with args.foo() as f:
+            with args.foo as f:
                 self.assertIs(f, sys.stdout)
         cmd = shellish.Command(run=run)
         cmd.add_file_argument('--foo', mode='w')
@@ -134,7 +134,7 @@ class CommandFileArguments(unittest.TestCase):
 
     def test_file_argument_read_found(self):
         def run(args):
-            with args.foo() as f:
+            with args.foo as f:
                 self.assertTrue(f.name.endswith('exists'))
                 self.assertTrue(f.mode, 'r')
         open('exists', 'w').close()
@@ -145,7 +145,7 @@ class CommandFileArguments(unittest.TestCase):
 
     def test_file_argument_create(self):
         def run(args):
-            with args.foo() as f:
+            with args.foo as f:
                 self.assertEqual(f.name, 'makethis')
                 f.write('ascii is okay')
         cmd = shellish.Command(run=run)

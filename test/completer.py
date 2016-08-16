@@ -1,7 +1,6 @@
 
 import io
 import os
-import platform
 import readline
 import shellish
 import sys
