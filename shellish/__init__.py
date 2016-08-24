@@ -5,3 +5,4 @@ from .data import *
 from .eventing import *
 from .session import *
 from .paging import *
+from .rendering import *

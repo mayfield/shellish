@@ -13,7 +13,7 @@ import re
 import shutil
 import sys
 import time
-from . import vtml
+from .. import rendering
 
 
 class RowsNotFound(ValueError):
@@ -37,7 +37,7 @@ class Table(object):
     column_padding = 2
     column_align = 'left'  # {left,right,center}
     title_align = 'left'
-    cliptext = vtml.beststr('…', '...')
+    cliptext = rendering.beststr('…', '...')
     column_minwidth = len(cliptext)
     renderer_types = {}
 
@@ -390,7 +390,7 @@ class TableRenderer(object):
 
     name = None
     clip_default = False
-    linebreak = vtml.beststr('—', '-')
+    linebreak = rendering.beststr('—', '-')
 
     def __init__(self, colspec=None, accessors=None, headers=None, table=None,
                  seed=None):
@@ -448,7 +448,7 @@ class TableRenderer(object):
     def cell_format(self, value):
         """ Subclasses should put any visual formatting specific to their
         rendering type here. """
-        return vtml.vtmlrender(value)
+        return rendering.vtmlrender(value)
 
     def get_overflower(self, width):
         return operator.methodcaller('clip', width, self.cliptext)
@@ -494,8 +494,8 @@ class TableRenderer(object):
     def format_fullwidth(self, value):
         """ Return a full width column. Note that the padding is inherited
         from the first cell which inherits from column_padding. """
-        if not isinstance(value, vtml.VTML):
-            value = vtml.VTML(value or '')
+        if not isinstance(value, rendering.VTML):
+            value = rendering.VTML(value or '')
         pad = self.colspec[0]['padding']
         fmt = self.make_formatter(self.width - pad, pad, self.title_align)
         return fmt(value)
@@ -632,7 +632,7 @@ class PlainTableRenderer(TableRenderer):
     name = 'plain'
 
     def print_header(self):
-        headers = [vtml.VTML(x or '') for x in self.headers]
+        headers = [rendering.VTML(x or '') for x in self.headers]
         header = ''.join(map(str, self.format_row(headers)))
         if self.title:
             print(self.format_fullwidth(self.title), file=self.file)
@@ -647,7 +647,7 @@ class PlainTableRenderer(TableRenderer):
         print(row, file=self.file)
 
     def cell_format(self, value):
-        return vtml.vtmlrender(value, plain=True)
+        return rendering.vtmlrender(value, plain=True)
 
 Table.register_renderer(PlainTableRenderer)
 
@@ -663,19 +663,19 @@ class TerminalTableRenderer(TableRenderer):
     footer_format = '<dim>%s</dim>'
 
     def print_header(self):
-        headers = [vtml.VTML(x or '') for x in self.headers]
+        headers = [rendering.VTML(x or '') for x in self.headers]
         header = ''.join(map(str, self.format_row(headers)))
         if self.title:
             title = self.format_fullwidth(self.title)
-            vtml.vtmlprint(self.title_format % title, file=self.file)
-        vtml.vtmlprint(self.header_format % header, file=self.file)
+            rendering.vtmlprint(self.title_format % title, file=self.file)
+        rendering.vtmlprint(self.header_format % header, file=self.file)
 
     def print_footer(self, content):
         row = self.format_fullwidth(content)
         if not self.footers_drawn:
             self.footers_drawn = True
             print(self.linebreak * len(row), file=self.file)
-        vtml.vtmlprint(self.footer_format % row, file=self.file)
+        rendering.vtmlprint(self.footer_format % row, file=self.file)
 
 Table.register_renderer(TerminalTableRenderer)
 
@@ -714,7 +714,7 @@ class JSONTableRenderer(TableRenderer):
         return key
 
     def cell_format(self, value):
-        return vtml.vtmlrender(value).text()
+        return rendering.vtmlrender(value).text()
 
     def print_header(self):
         self.buf['title'] = self.title
@@ -742,7 +742,7 @@ class CSVTableRenderer(TableRenderer):
         self.writer = csv.writer(self.file)
 
     def cell_format(self, value):
-        return vtml.vtmlrender(value).text()
+        return rendering.vtmlrender(value).text()
 
     def print_footer(self, content):
         """ CSV does not support footers. """
@@ -775,7 +775,7 @@ class MarkdownTableRenderer(PlainTableRenderer):
     def print_header(self):
         if self.title:
             print("**%s**" % self.title, file=self.file)
-        headers = [vtml.VTML(x or '') for x in self.headers]
+        headers = [rendering.VTML(x or '') for x in self.headers]
         self.mdprint(*map(str, self.format_row(headers)))
         self.mdprint(*("-" * (width + colspec['padding'])
                      for width, colspec in zip(self.widths, self.colspec)))

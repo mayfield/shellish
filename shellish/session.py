@@ -12,11 +12,11 @@ import readline
 import shutil
 import sys
 import traceback
-from . import eventing, layout
+from . import eventing, rendering
 
 
 def _vprinterr(*args, **kwargs):
-    return layout.vtmlprint(*args, file=sys.stderr, **kwargs)
+    return rendering.vtmlprint(*args, file=sys.stderr, **kwargs)
 
 
 class SessionExit(BaseException):
@@ -156,37 +156,11 @@ class Session(eventing.Eventer):
         else:
             _vprinterr("<red>Command '%s' error, traceback...</red>" %
                        cmdname)
-            self.pretty_print_traceback(exc)
+            rendering.print_exception(exc, file=sys.stderr)
 
-    def pretty_print_traceback(self, exc, indent=0):
-        pad = '  '
-        from_msg = None
-        if exc.__cause__ is not None:
-            indent += self.pretty_print_traceback(exc.__cause__, indent)
-            from_msg = traceback._cause_message.strip()
-        elif exc.__context__ is not None and not exc.__suppress_context__:
-            indent += self.pretty_print_traceback(exc.__context__, indent)
-            from_msg = traceback._context_message.strip()
-        if from_msg:
-            _vprinterr('\n', pad * indent, from_msg, '\n', sep='')
-        tblist = traceback.extract_tb(exc.__traceback__)
-        tbdepth = len(tblist)
-        for x in tblist:
-            _vprinterr(pad * indent, end='')
-            _vprinterr(' <dim>%2d.</dim> <cyan>File</cyan> "<blue>%s</blue>", '
-                       'line <u>%d</u>, in <b>%s</b>' % (tbdepth, x.filename,
-                       x.lineno, x.name))
-            _vprinterr(pad * indent, end='')
-            _vprinterr('       %s' % x.line)
-            tbdepth -= 1
-        _vprinterr(pad * indent, end='')
-        _vprinterr("<b><red>%s</red>: %s</b>" % (type(exc).__name__, exc))
-        return indent + 1
-
-    @property
     def prompt(self):
         raw = self.prompt_format.format(**self.prompt_info())
-        return layout.vtmlrender(raw)
+        return rendering.vtmlrender(raw)
 
     def prompt_info(self):
         """ Return a dictionary of items that can be substituted into the
@@ -268,7 +242,7 @@ class Session(eventing.Eventer):
         """ Main entry point for running in interactive mode. """
         self.root_command.prog = ''
         history_file = self.load_history()
-        layout.vtmlprint(self.intro)
+        rendering.vtmlprint(self.intro)
         try:
             self.loop()
         finally:

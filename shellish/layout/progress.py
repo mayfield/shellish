@@ -5,15 +5,15 @@ Visual progress indicators.
 import math
 import shutil
 import sys
-from . import vtml
+from .. import rendering
 
 
 class ProgressBar(object):
     """ Progress bar class for more advanced control apps.  Most likely this
     should just be used by subclasses or by the generator functions. """
 
-    partials = vtml.beststr('▏▎▎▍▍▌▌▋▋▊▊▉▉█', '#')
-    fill = vtml.beststr('▯', '-')
+    partials = rendering.beststr('▏▎▎▍▍▌▌▋▋▊▊▉▉█', '#')
+    fill = rendering.beststr('▯', '-')
 
     def __init__(self, min=0, max=1, width=None, file=None, prefix=' ',
                  suffix=' ', bar_style='', fill_style='', show_percent=True,
@@ -58,16 +58,16 @@ class ProgressBar(object):
         fill = self.fill * (self.bar_width - len(bar))
         if self.show_percent:
             pct = '%4.0f%%' % (pct * 100)
-        vtml.vtmlprint('\r', self.prefix, self.bar_style + bar,
-                       self.fill_style + fill, pct, self.suffix, sep='',
-                       end='', file=self.file, flush=True)
+        rendering.vtmlprint('\r', self.prefix, self.bar_style + bar,
+                            self.fill_style + fill, pct, self.suffix, sep='',
+                            end='', file=self.file, flush=True)
 
     def set(self, value):
         self.value = value
         self.draw()
 
     def clear(self):
-        vtml.vtmlprint('\r', ' ' * self.width, file=self.file)
+        rendering.vtmlprint('\r', ' ' * self.width, file=self.file)
 
     def hide_cursor(self):
         print('\033[?25l', file=self.file)

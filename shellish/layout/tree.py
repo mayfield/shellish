@@ -5,7 +5,7 @@ Tree layout.
 import collections
 import collections.abc
 import sys
-from . import vtml
+from .. import rendering
 
 
 class TreeNode(object):
@@ -22,9 +22,9 @@ class TreeNode(object):
 class Tree(object):
     """ Construct a visual tree from a data source. """
 
-    tree_L = vtml.beststr('└── ', '\-- ')
-    tree_T = vtml.beststr('├── ', '+-- ')
-    tree_vertspace = vtml.beststr('│   ', '|   ')
+    tree_L = rendering.beststr('└── ', '\-- ')
+    tree_T = rendering.beststr('├── ', '+-- ')
+    tree_vertspace = rendering.beststr('│   ', '|   ')
 
     def __init__(self, formatter=None, sort_key=None):
         self.formatter = formatter or self.default_formatter
@@ -50,7 +50,7 @@ class Tree(object):
                     line.append(self.tree_T)
             else:
                 line = ['']
-            yield vtml.vtmlrender(''.join(line + [self.formatter(x)]))
+            yield rendering.vtmlrender(''.join(line + [self.formatter(x)]))
             if x.children:
                 if prefix is not None:
                     line[-1] = '    ' if end == i else self.tree_vertspace

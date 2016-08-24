@@ -3,7 +3,7 @@ Command for interactive sessions only.
 """
 
 from .. import command
-from ... import vtml
+from ... import rendering
 
 
 class Help(command.Command):
@@ -50,7 +50,7 @@ class Help(command.Command):
         print()
         print('  ALIAS')
         for k, v in self.session.aliases.items():
-            print('    %-13s%s %s' % (k, vtml.beststr(' ⇨', '->'),
+            print('    %-13s%s %s' % (k, rendering.beststr(' ⇨', '->'),
                   v.strip()))
 
 

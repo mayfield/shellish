@@ -5,7 +5,7 @@ Display a list in columns.
 import math
 import shutil
 import sys
-from . import vtml
+from .. import rendering
 
 
 def columnize(items, width=None, file=sys.stdout):
@@ -14,7 +14,7 @@ def columnize(items, width=None, file=sys.stdout):
         return
     if width is None:
         width = shutil.get_terminal_size()[0] if file is sys.stdout else 80
-    items = [vtml.vtmlrender(x) for x in items]
+    items = [rendering.vtmlrender(x) for x in items]
     maxcol = max(items, key=len)
     colsize = len(maxcol) + 2
     cols = width // colsize

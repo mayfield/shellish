@@ -3,6 +3,12 @@
 
 ## [Unreleased] - unreleased
 ### Changed
+- Refactor to put vtml/html/etc into rendering submodule.
+- Moved colorized traceback formatting to rendering submodule for public use.
+
+
+## [2.4] - 2016-08-17
+### Changed
 - Arguments produced by `Command.`add_file_argument` no longer need to be
   called when used as context managers.  E.g.  In older code you would do
 
@@ -192,7 +198,8 @@
 - First stable release
 
 
-[unreleased]: https://github.com/mayfield/shellish/compare/v2.3...HEAD
+[unreleased]: https://github.com/mayfield/shellish/compare/v2.4...HEAD
+[2.4]: https://github.com/mayfield/shellish/compare/v2.3...v2.4
 [2.3]: https://github.com/mayfield/shellish/compare/v2.2...v2.3
 [2.2]: https://github.com/mayfield/shellish/compare/v2.1...v2.2
 [2.1]: https://github.com/mayfield/shellish/compare/v2...v2.1

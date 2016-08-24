@@ -8,7 +8,7 @@ import shutil
 import sys
 import textwrap
 import warnings
-from .. import layout
+from .. import rendering
 
 
 class ShellishParser(argparse.ArgumentParser):
@@ -47,7 +47,7 @@ class VTMLHelpFormatter(argparse.HelpFormatter):
     hardline = re.compile('\n\s*\n')
 
     def vtmlrender(self, string):
-        vstr = layout.vtmlrender(string)
+        vstr = rendering.vtmlrender(string)
         return str(vstr.plain() if not sys.stdout.isatty() else vstr)
 
     def start_section(self, heading):
