@@ -23,7 +23,7 @@ setup(
     license='MIT',
     long_description=long_desc(),
     packages=find_packages(),
-    install_requires=[],
+    install_requires=['markdown2'],
     test_suite='test',
     entry_points = {
         'console_scripts': [
