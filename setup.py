@@ -26,7 +26,10 @@ setup(
     install_requires=[],
     test_suite='test',
     entry_points = {
-        'console_scripts': ['csvpretty=shellish.tools.csvpretty:csvpretty']
+        'console_scripts': [
+            'csvpretty=shellish.tools.csvpretty:csvpretty',
+            'mdcat=shellish.tools.mdcat:mdcat'
+        ]
     },
     classifiers=[
         'Development Status :: 4 - Beta',

@@ -232,3 +232,13 @@ class HTMLConversion(unittest.TestCase):
                              self.a_format % 'foo (link.here)')
             self.assertEqual(R.html2vtml('<a %s="link.here">foo</A>' % x),
                              self.a_format % 'foo (link.here)')
+
+
+class MDConversion(unittest.TestCase):
+
+    def test_empty(self):
+        R.mdrender('')
+
+    def test_bold(self):
+        self.assertEqual(R.mdrender('**foo**'), R.vtmlrender('\n<b>foo</b>\n'))
+        self.assertEqual(R.mdrender('__foo__'), R.vtmlrender('\n<b>foo</b>\n'))

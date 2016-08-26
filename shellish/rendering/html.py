@@ -4,14 +4,13 @@ to a text file in human readable format.
 """
 
 import collections
-import html
-import html.parser
 import re
 import warnings
 from . import vtml
+from html import parser
 
 
-class HTMLConv(html.parser.HTMLParser):
+class HTMLConv(parser.HTMLParser):
     """ Convert HTML to VTML. """
 
     strip = {
@@ -19,11 +18,16 @@ class HTMLConv(html.parser.HTMLParser):
         "style"
     }
 
+    raw = {
+        "code"
+    }
+
     noop = {
         "head",
         "html",
         "div",
-        "span"
+        "span",
+        "pre"
     }
 
     whitespace = re.compile(r'\s+')
@@ -36,6 +40,12 @@ class HTMLConv(html.parser.HTMLParser):
 
     def stripping(self):
         for x in self.strip:
+            if x in self.tag_stack:
+                return True
+        return False
+
+    def preserve_whitespace(self):
+        for x in self.raw:
             if x in self.tag_stack:
                 return True
         return False
@@ -69,7 +79,9 @@ class HTMLConv(html.parser.HTMLParser):
 
     def handle_data(self, data):
         if not self.stripping():
-            self.buf.append(self.whitespace.sub(' ', data))
+            if not self.preserve_whitespace():
+                data = self.whitespace.sub(' ', data)
+            self.buf.append(data)
 
     def handle_start_b(self, tag, attrs):
         self.buf.append('<b>')
@@ -81,9 +93,11 @@ class HTMLConv(html.parser.HTMLParser):
 
     def handle_start_u(self, tag, attrs):
         self.buf.append('<u>')
+    handle_start_em = handle_start_u
 
     def handle_end_u(self, tag, attrs):
         self.buf.append('</u>')
+    handle_end_em = handle_end_u
 
     def handle_start_h1(self, tag, attrs):
         self.buf.append('\n<b>')
@@ -153,6 +167,29 @@ class HTMLConv(html.parser.HTMLParser):
 
     def handle_end_li(self, tag, attrs):
         self.buf.append('\n')
+
+    def handle_start_code(self, tag, attrs):
+        pass
+
+    def handle_end_code(self, tag, attrs):
+        lines = self.buf.pop().splitlines()
+        width = len(max(lines, key=len))
+        fmt = '  <bgblack><green>  %%-%ds  </green></bgblack>\n' % width
+        self.buf.append('\n')
+        self.buf.append(fmt % '')
+        for line in lines:
+            self.buf.append(fmt % line)
+        self.buf.append(fmt % '')
+
+    def handle_start_img(self, tag, attrs):
+        self.buf.append('<cyan><u>')
+        if 'alt' in attrs:
+            self.buf.append('%s (%s)' % (attrs['alt'], attrs['src']))
+        else:
+            self.buf.append(attrs['src'])
+
+    def handle_end_img(self, tag, attrs):
+        self.buf.append('</u></cyan>')
 
     def getvalue(self):
         return ''.join(self.buf)
