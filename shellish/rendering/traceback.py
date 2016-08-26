@@ -22,13 +22,15 @@ def format_exception(exc, indent=0, pad='  '):
     padding = pad * indent
     if from_msg:
         yield '\n%s%s\n' % (padding, from_msg)
+    yield '%s<b><u>Traceback (most recent call last)</u></b>' % padding
     tblist = traceback.extract_tb(exc.__traceback__)
     tbdepth = len(tblist)
     for x in tblist:
-        yield '%s <dim>%2d.</dim> <cyan>File</cyan> "<blue>%s</blue>", ' \
-              'line <u>%d</u>, in <b>%s</b>' % (padding, tbdepth,
-              x.filename, x.lineno, x.name)
-        yield '%s       %s' % (padding, x.line)
+        depth = '%d.' % tbdepth
+        yield '%s<dim>%-3s</dim> <cyan>File</cyan> "<blue>%s</blue>", ' \
+              'line <u>%d</u>, in <b>%s</b>' % (padding, depth, x.filename,
+              x.lineno, x.name)
+        yield '%s      %s' % (padding, x.line)
         tbdepth -= 1
     yield '%s<b><red>%s</red>: %s</b>' % (padding, type(exc).__name__, exc)
     return indent + 1

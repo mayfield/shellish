@@ -158,6 +158,7 @@ class Session(eventing.Eventer):
                        cmdname)
             rendering.print_exception(exc, file=sys.stderr)
 
+    @property
     def prompt(self):
         raw = self.prompt_format.format(**self.prompt_info())
         return rendering.vtmlrender(raw)
