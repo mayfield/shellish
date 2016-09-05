@@ -4,7 +4,6 @@ used by all commands.
 """
 
 import collections
-import configparser
 import functools
 import inspect
 import itertools
