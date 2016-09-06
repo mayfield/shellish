@@ -9,7 +9,8 @@ from . import rendering
 class VTMLHandler(logging.StreamHandler):
     """ Parse VTML messages to colorize and embolden logs. """
 
-    log_format = '[<blue>%(asctime)s</blue>] [%(levelname)s] %(message)s'
+    log_format = '[<blue>%(asctime)s</blue>] [<cyan>%(name)s</cyan>] ' \
+        '[%(levelname)s] %(message)s'
     level_fmt = {
         10: '<dim>%s</dim>',
         20: '%s',
