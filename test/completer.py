@@ -106,6 +106,14 @@ class ArgumentCompletions(unittest.TestCase):
             finally:
                 os.chdir(cwd)
 
+    def test_completer_custom_parser(self):
+        completer = lambda *args, **kwargs: None
+        class T(shellish.Command):
+            def setup_args(self, parser):
+                p = parser.add_mutually_exclusive_group()
+                self.add_argument('--foo', parser=p, complete=completer)
+        T()
+
 
 class TestSysComplete(unittest.TestCase):
 

@@ -254,7 +254,7 @@ class Command(eventing.Eventer):
         command name and the dest property of the action. """
         if parser is None:
             parser = self.argparser
-        action = parser.add_argument(*args, **kwargs)
+        action = parser.add_argument(*args, env=env, **kwargs)
         if autoenv:
             if env is not None:
                 raise TypeError('Arguments `env` and `autoenv` are mutually '
