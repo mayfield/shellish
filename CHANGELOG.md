@@ -2,6 +2,14 @@
 
 
 ## [Unreleased] - unreleased
+### Added
+- VTML logging handler for converting messages to VTML.
+- Environment variable mapping to arguments.  Defaults or otherwise all
+  argument setting can be done for arguments created with `env=NAME` or
+  `autoenv=True`.
+- Colorized `--help` output.
+- Added default value printing to `--help` output.
+
 ### Changed
 - Refactor to put vtml/html/etc into rendering submodule.
 - Moved colorized traceback formatting to rendering submodule for public use.
