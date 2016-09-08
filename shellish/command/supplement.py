@@ -33,16 +33,6 @@ class ShellishParser(argparse.ArgumentParser):
         self._env_actions[env] = action
         action.env = env
 
-    def add_argument(self, *args, complete=None, env=None, **kwargs):
-        action = super().add_argument(*args, **kwargs)
-        if complete:
-            action.complete = complete
-        if env:
-            self.attach_env(env, action)
-        else:
-            action.env = None
-        return action
-
     def parse_args(self, *args, **kwargs):
         env_defaults = {}
         for env, action in self._env_actions.items():
