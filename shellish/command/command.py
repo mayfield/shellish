@@ -247,13 +247,20 @@ class Command(eventing.Eventer):
             command.argparser._defaults[self.arg_label_fmt % value] = command
         self._depth = value
 
-    def add_argument(self, *args, complete=None, parser=None, **kwargs):
-        """ Allow cleaner action supplementation. """
+    def add_argument(self, *args, parser=None, autoenv=False, env=None,
+                     **kwargs):
+        """ Allow cleaner action supplementation.  Autoenv will generate an
+        environment variable to be usable as a defaults setter based on the
+        command name and the dest property of the action. """
         if parser is None:
             parser = self.argparser
         action = parser.add_argument(*args, **kwargs)
-        if complete:
-            action.complete = complete
+        if autoenv:
+            if env is not None:
+                raise TypeError('Arguments `env` and `autoenv` are mutually '
+                                'exclusive')
+            env = ('%s_%s' % (self.name, action.dest)).upper()
+            parser.attach_env(env, action)
         return action
 
     def add_file_argument(self, *args, mode='r', buffering=1,

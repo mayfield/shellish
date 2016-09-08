@@ -3,6 +3,7 @@ Supplemental code for stdlib package(s).  Namely argparse.
 """
 
 import argparse
+import os
 import re
 import shutil
 import sys
@@ -12,6 +13,45 @@ from .. import rendering
 
 
 class ShellishParser(argparse.ArgumentParser):
+
+    env_desc = 'Environment variables can be used to set argument default ' \
+               'values.  Note that they may still be overridden by ' \
+               'supplying the argument on the command line.\n\nWhen an ' \
+               'argument has a corresponding environment variable it is noted ' \
+               'parenthetically to the right of the argument description.'
+
+    def __init__(self, *args, **kwargs):
+        self._env_actions = {}
+        super().__init__(*args, **kwargs)
+
+    def attach_env(self, env, action):
+        """ Attach an environment variable to an argument action.  The env
+        value will traditionally be something uppercase like `MYAPP_FOO_ARG`.
+
+        Note that the ENV value is assigned using `set_defaults()` and as such
+        it will be overridden if the argument is set via `parse_args()` """
+        self._env_actions[env] = action
+        action.env = env
+
+    def add_argument(self, *args, complete=None, env=None, **kwargs):
+        action = super().add_argument(*args, **kwargs)
+        if complete:
+            action.complete = complete
+        if env:
+            self.attach_env(env, action)
+        else:
+            action.env = None
+        return action
+
+    def parse_args(self, *args, **kwargs):
+        env_defaults = {}
+        for env, action in self._env_actions.items():
+            if env in os.environ:
+                env_defaults[action.dest] = os.environ[env]
+                action.required = False  # XXX This is a hack
+        if env_defaults:
+            self.set_defaults(**env_defaults)
+        return super().parse_args(*args, **kwargs)
 
     def _get_formatter(self):
         width = shutil.get_terminal_size()[0] - 2
@@ -33,6 +73,11 @@ class ShellishParser(argparse.ArgumentParser):
             formatter.add_text('<b><u>%s</u></b>' % title)
         if about:
             formatter.add_text(about)
+        if self._env_actions:
+            formatter.start_section('<b>environment variables</b>')
+            formatter.add_text(self.env_desc)
+            formatter.end_section()
+
         for action_group in self._action_groups:
             formatter.start_section('<b>%s</b>' % action_group.title)
             formatter.add_text(action_group.description)
@@ -59,6 +104,21 @@ class VTMLHelpFormatter(argparse.HelpFormatter):
         return '\n\n'.join(textwrap.fill(x, width, initial_indent=indent,
                                          subsequent_indent=indent)
                            for x in paragraphs)
+
+    def _get_help_string(self, action):
+        """ Adopted from ArgumentDefaultsHelpFormatter. """
+        help = action.help
+        prefix = ''
+        if getattr(action, 'env', None):
+            prefix = '(<cyan>%s</cyan>) ' % action.env
+        if '%(default)' not in help:
+            if action.default not in (argparse.SUPPRESS, None):
+                defaulting_nargs = [argparse.OPTIONAL, argparse.ZERO_OR_MORE]
+                if action.option_strings or action.nargs in defaulting_nargs:
+                    prefix = '[<b>%%(default)s</b>] %s ' % prefix
+        vhelp = rendering.vtmlrender('%s<blue>%s</blue>' % (prefix, help))
+        return str(vhelp.plain() if not sys.stdout.isatty() else vhelp)
+
 
 
 class SafeFileContext(object):
