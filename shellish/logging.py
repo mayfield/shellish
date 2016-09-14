@@ -22,7 +22,7 @@ class VTMLHandler(logging.StreamHandler):
 class VTMLFormatter(logging.Formatter):
 
     default_fmt = ' '.join((
-        '[%(asctime)s] foo',
+        '[%(asctime)s]',
         '[%(name)s]',
         '[%(levelname)s]',
         '%(message)s'

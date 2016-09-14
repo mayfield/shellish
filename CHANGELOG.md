@@ -2,6 +2,8 @@
 
 
 ## [Unreleased] - unreleased
+### Fixed
+- Remove `foo` cruft from default log format in the new log handler.
 
 
 ## [3] - 2016-09-14
