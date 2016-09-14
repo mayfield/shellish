@@ -2,6 +2,9 @@
 
 
 ## [Unreleased] - unreleased
+
+
+## [3] - 2016-09-14
 ### Added
 - VTML logging handler for converting messages to VTML.
 - Environment variable mapping to arguments.  Defaults or otherwise all
@@ -206,7 +209,8 @@
 - First stable release
 
 
-[unreleased]: https://github.com/mayfield/shellish/compare/v2.4...HEAD
+[unreleased]: https://github.com/mayfield/shellish/compare/v3...HEAD
+[3]: https://github.com/mayfield/shellish/compare/v2.4...v3
 [2.4]: https://github.com/mayfield/shellish/compare/v2.3...v2.4
 [2.3]: https://github.com/mayfield/shellish/compare/v2.2...v2.3
 [2.2]: https://github.com/mayfield/shellish/compare/v2.1...v2.2
