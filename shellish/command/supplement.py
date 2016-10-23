@@ -12,6 +12,9 @@ import warnings
 from .. import rendering
 
 
+HELP_SENTINEL = '       '
+
+
 class ShellishParser(argparse.ArgumentParser):
 
     env_desc = 'Environment variables can be used to set argument default ' \
@@ -76,6 +79,9 @@ class ShellishParser(argparse.ArgumentParser):
         formatter.add_text(self.epilog)
         return formatter.format_help()
 
+    def add_argument(self, *args, help=HELP_SENTINEL, **kwargs):
+        return super().add_argument(*args, help=help, **kwargs)
+
 
 class VTMLHelpFormatter(argparse.HelpFormatter):
 
@@ -97,7 +103,10 @@ class VTMLHelpFormatter(argparse.HelpFormatter):
 
     def _get_help_string(self, action):
         """ Adopted from ArgumentDefaultsHelpFormatter. """
-        help = action.help
+        if action.help is not HELP_SENTINEL:
+            help = action.help
+        else:
+            help = ''
         prefix = ''
         if getattr(action, 'env', None):
             prefix = '(<cyan>%s</cyan>) ' % action.env

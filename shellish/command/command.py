@@ -451,8 +451,11 @@ class Command(eventing.Eventer):
             if self.default_subcommand:
                 raise ValueError("Default subcommand already exists.")
             self.default_subcommand = command
-        help_fmt = '%s (default)' if default else '%s'
-        help = help_fmt % command.title
+        if command.title is not None:
+            help_fmt = '%s (default)' if default else '%s'
+            help = help_fmt % command.title
+        else:
+            help = '(default)' if default else ''
         command.prog = '%s %s' % (self.prog, command.name)
         command.argparser._defaults[self.arg_label_fmt % self.depth] = command
         action = self.subparsers._ChoicesPseudoAction(command.name, (), help)
