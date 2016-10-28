@@ -3,6 +3,7 @@ Supplemental code for stdlib package(s).  Namely argparse.
 """
 
 import argparse
+import io
 import os
 import re
 import shutil
@@ -110,11 +111,16 @@ class VTMLHelpFormatter(argparse.HelpFormatter):
         prefix = ''
         if getattr(action, 'env', None):
             prefix = '(<cyan>%s</cyan>) ' % action.env
-        if '%(default)' not in help:
-            if action.default not in (argparse.SUPPRESS, None):
-                defaulting_nargs = [argparse.OPTIONAL, argparse.ZERO_OR_MORE]
-                if action.option_strings or action.nargs in defaulting_nargs:
-                    prefix = '[<b>%%(default)s</b>] %s ' % prefix
+
+        if '%(default)' not in help and \
+           action.default not in (argparse.SUPPRESS, None):
+            defaulting_nargs = [argparse.OPTIONAL, argparse.ZERO_OR_MORE]
+            if action.option_strings or action.nargs in defaulting_nargs:
+                if isinstance(action.default, io.IOBase):
+                    default = action.default.name
+                else:
+                    default = action.default
+                prefix = '[<b>%s</b>] %s ' % (default, prefix)
         vhelp = rendering.vtmlrender('%s<blue>%s</blue>' % (prefix, help))
         return str(vhelp.plain() if not sys.stdout.isatty() else vhelp)
 

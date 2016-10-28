@@ -5,6 +5,7 @@
 ### Fixed
 - Remove `foo` cruft from default log format in the new log handler.
 - Cleaner help formatting when doc-strings and help kwargs are omitted.
+- Removed double display of defaults when using `autocommand`.
 
 
 ## [3] - 2016-09-14

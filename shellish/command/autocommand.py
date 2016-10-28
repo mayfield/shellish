@@ -4,7 +4,6 @@ A command class that is built from a normal function.
 
 import argparse
 import inspect
-import io
 from . import command
 
 
@@ -68,11 +67,6 @@ class AutoCommand(command.Command):
                               param.KEYWORD_ONLY):
                 if param.kind == param.KEYWORD_ONLY or \
                    param.default is not sig.empty:
-                    if isinstance(param.default, io.IOBase):
-                        defvalue = param.default.name
-                    else:
-                        defvalue = str(param.default)
-                    help = "(default: %s)" % defvalue
                     name = '--%s' % name
                     label = 'keyword'
                     got_keywords = True
@@ -113,7 +107,7 @@ class AutoCommand(command.Command):
                         options['metavar'] = options['type'].__name__.upper()
                     except:
                         pass
-            action = parser.add_argument(name, **options)
+            action = parser.add_argument(name.replace('_', '-'), **options)
             action.label = label
 
 
