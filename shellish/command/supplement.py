@@ -49,7 +49,7 @@ class ShellishParser(argparse.ArgumentParser):
     def parse_known_args(self, *args, **kwargs):
         env_defaults = {}
         for env, action in self._env_actions.items():
-            if env in os.environ:
+            if os.environ.get(env):
                 env_defaults[action.dest] = os.environ[env]
                 action.required = False  # XXX This is a hack
         if env_defaults:
