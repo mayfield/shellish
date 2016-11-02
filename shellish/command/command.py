@@ -7,6 +7,7 @@ import collections
 import functools
 import inspect
 import itertools
+import re
 import shlex
 from . import supplement
 from .. import completer, layout, eventing, session, paging
@@ -43,6 +44,8 @@ class Command(eventing.Eventer):
     Session = session.Session
     completion_excludes = {'--help'}
     arg_label_fmt = '__command[%d]__'
+    env_scrub_re = '[^\w\s\-_]'  # chars scrubed from env vars
+    env_flatten_re = '[\s\-_]+' # chars converted to underscores
 
     def setup_args(self, parser):
         """ Subclasses should provide any setup for their parsers here. """
@@ -58,7 +61,7 @@ class Command(eventing.Eventer):
 
     def run(self, args):
         """ Primary entry point for command exec. """
-        self.argparser.print_usage()
+        self.argparser.print_help()
         raise SystemExit(1)
 
     def __init__(self, parent=None, title=None, desc=None, name=None, run=None,
@@ -85,10 +88,11 @@ class Command(eventing.Eventer):
         self.default_subcommand = None
         self.session = None
         self.context_keys = set()
+        self._autoenv_actions = set()
         self.inject_context(context)
-        self.parent = parent
         self.subparsers = None
         self.argparser = self.create_argparser()
+        self.parent = parent
         self.setup_args(self.argparser)
         self.fire_event('setup_args', self.argparser)
 
@@ -123,6 +127,9 @@ class Command(eventing.Eventer):
                 parser.parse_args([], namespace=args)
                 return self(args)  # retry
         return session.execute(self, args)
+
+    def __getitem__(self, item):
+        return self.subcommands[item]
 
     def get_pager_spec(self):
         """ Find the best pager settings for this command.  If the user has
@@ -212,6 +219,13 @@ class Command(eventing.Eventer):
         else:
             self.depth = 0
 
+    def find_root(self):
+        """ Traverse parent refs to top. """
+        cmd = self
+        while cmd.parent:
+            cmd = cmd.parent
+        return cmd
+
     def inject_context(self, __context_dict__=None, **context):
         """ Map context dict to this instance as attributes and keep note of
         the keys being set so we can pass this along to any subcommands. """
@@ -233,6 +247,10 @@ class Command(eventing.Eventer):
         fmt = '%s %%s' % prog if prog else '%s'
         for command in self.subcommands.values():
             command.prog = fmt % command.name
+        # Rebind autoenv vars with recomputed key.
+        for action in self._autoenv_actions:
+            self.argparser.unbind_env(action)
+            self.argparser.bind_env(action, self._make_autoenv(action))
 
     @property
     def depth(self):
@@ -259,12 +277,26 @@ class Command(eventing.Eventer):
             if env is not None:
                 raise TypeError('Arguments `env` and `autoenv` are mutually '
                                 'exclusive')
-            env = ('%s_%s' % (self.name, action.dest)).upper()
+            env = self._make_autoenv(action)
         if env:
-            self.argparser.attach_env(env, action)  # attach to root parser
+            self.argparser.bind_env(action, env)
+            if autoenv:
+                self._autoenv_actions.add(action)
         if complete:
             action.complete = complete
         return action
+
+    def _make_autoenv(self, action):
+        """ Generate a suitable env variable for this action.  This is
+        dependant on our subcommand hierarchy.  Review the prog setter for
+        details. """
+        env = ('%s_%s' % (self.prog, action.dest)).upper()
+        env = re.sub(self.env_scrub_re, '', env.strip())
+        env = re.sub(self.env_flatten_re, '_', env)
+        if re.match('^[0-9]', env):
+            # Handle leading numbers.
+            env = '_%s' % env
+        return env
 
     def add_file_argument(self, *args, mode='r', buffering=1,
                           filetype_options=None, **kwargs):
@@ -300,11 +332,9 @@ class Command(eventing.Eventer):
         """ Create a session and inject it as context for this command and any
         subcommands. """
         assert self.session is None
-        cmd = self
-        while cmd.parent:
-            cmd = cmd.parent
-        session = self.Session(cmd)
-        cmd.inject_context(session=session)
+        root = self.find_root()
+        session = self.Session(root)
+        root.inject_context(session=session)
         return session
 
     def complete(self, text, line, begin, end):
@@ -478,6 +508,3 @@ class Command(eventing.Eventer):
         self.subparsers._choices_actions.remove(action)
         command.session = None
         command.parent = None
-
-    def __getitem__(self, item):
-        return self.subcommands[item]

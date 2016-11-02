@@ -21,23 +21,32 @@ class ShellishParser(argparse.ArgumentParser):
     env_desc = 'Environment variables can be used to set argument default ' \
                'values.  Note that they may still be overridden by ' \
                'supplying the argument on the command line.\n\nWhen an ' \
-               'argument has a corresponding environment variable it is noted ' \
-               'parenthetically to the right of the argument description.'
+               'argument has a corresponding environment variable it is ' \
+               'noted parenthetically to the right of the argument ' \
+               'description.'
 
     def __init__(self, *args, **kwargs):
         self._env_actions = {}
         super().__init__(*args, **kwargs)
 
-    def attach_env(self, env, action):
-        """ Attach an environment variable to an argument action.  The env
+    def bind_env(self, action, env):
+        """ Bind an environment variable to an argument action.  The env
         value will traditionally be something uppercase like `MYAPP_FOO_ARG`.
 
         Note that the ENV value is assigned using `set_defaults()` and as such
         it will be overridden if the argument is set via `parse_args()` """
+        if env in self._env_actions:
+            raise ValueError('Duplicate ENV variable: %s' % env)
         self._env_actions[env] = action
         action.env = env
 
-    def parse_args(self, *args, **kwargs):
+    def unbind_env(self, action):
+        """ Unbind an environment variable from an argument action.  Only used
+        when the subcommand hierarchy changes. """
+        del self._env_actions[action.env]
+        delattr(action, 'env')
+
+    def parse_known_args(self, *args, **kwargs):
         env_defaults = {}
         for env, action in self._env_actions.items():
             if env in os.environ:
@@ -45,7 +54,7 @@ class ShellishParser(argparse.ArgumentParser):
                 action.required = False  # XXX This is a hack
         if env_defaults:
             self.set_defaults(**env_defaults)
-        return super().parse_args(*args, **kwargs)
+        return super().parse_known_args(*args, **kwargs)
 
     def _get_formatter(self):
         width = shutil.get_terminal_size()[0] - 2

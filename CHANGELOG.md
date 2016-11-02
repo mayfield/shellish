@@ -7,6 +7,13 @@
 - Cleaner help formatting when doc-strings and help kwargs are omitted.
 - Removed double display of defaults when using `autocommand`.
 
+### Added
+- Subcommand support for `env` and `autoenv` arguments.
+- Sanitize autoenv generated env keys.
+
+### Changed
+- Default behavior of subcommand is to print help instead of just usage.
+
 
 ## [3] - 2016-09-14
 ### Added
