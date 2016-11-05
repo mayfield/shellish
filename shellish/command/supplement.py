@@ -14,7 +14,9 @@ from .. import rendering
 
 
 class HelpSentinel(str):
-    pass
+
+    def __len__(self):
+        return 1
 
 HELP_SENTINEL = HelpSentinel()
 
@@ -116,10 +118,7 @@ class VTMLHelpFormatter(argparse.HelpFormatter):
 
     def _get_help_string(self, action):
         """ Adopted from ArgumentDefaultsHelpFormatter. """
-        if action.help is not HELP_SENTINEL:
-            help = action.help
-        else:
-            help = ''
+        help = action.help
         prefix = ''
         if getattr(action, 'env', None):
             prefix = '(<cyan>%s</cyan>) ' % action.env
