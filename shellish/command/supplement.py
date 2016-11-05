@@ -13,7 +13,10 @@ import warnings
 from .. import rendering
 
 
-HELP_SENTINEL = '       '
+class HelpSentinel(str):
+    pass
+
+HELP_SENTINEL = HelpSentinel()
 
 
 class ShellishParser(argparse.ArgumentParser):
