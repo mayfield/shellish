@@ -98,7 +98,9 @@ class ShellishParser(argparse.ArgumentParser):
     def print_help(self, *args, **kwargs):
         """ Add pager support to help output. """
         if self._command.session.allow_pager:
-            with paging.pager_redirect(**self._command.get_pager_spec()):
+            desc = 'Help\: %s' % '-'.join(self.prog.split())
+            pager_kwargs = self._command.get_pager_spec()
+            with paging.pager_redirect(desc, **pager_kwargs):
                 return super().print_help(*args, **kwargs)
         else:
                 return super().print_help(*args, **kwargs)

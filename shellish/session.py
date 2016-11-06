@@ -62,7 +62,8 @@ class Session(eventing.Eventer):
                 "prompt_format": self.default_prompt_format
             },
             "core": {
-                "pager": "less -X -R -F"
+                "pager": "less -X -R -F -P's{desc}, line %l "
+                         "(press h for help or q to quit)'"
             }
         }
 
@@ -165,8 +166,8 @@ class Session(eventing.Eventer):
 
     def prompt_info(self):
         """ Return a dictionary of items that can be substituted into the
-        prompt_format by the subclass or it's user if customized in the
-        config file by them. """
+        prompt_format by the subclass or its user if customized in the
+        config file. """
         return {
             "name": self.name,
         }

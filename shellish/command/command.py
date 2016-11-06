@@ -156,7 +156,8 @@ class Command(eventing.Eventer):
         self.prerun(args)
         try:
             if self.session.allow_pager and self.use_pager:
-                with paging.pager_redirect(**self.get_pager_spec()):
+                desc = 'Command\: %s' % '-'.join(self.prog.split())
+                with paging.pager_redirect(desc, **self.get_pager_spec()):
                     result = self.run(args)
             else:
                 result = self.run(args)
