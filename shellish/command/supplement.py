@@ -10,7 +10,7 @@ import shutil
 import sys
 import textwrap
 import warnings
-from .. import rendering
+from .. import rendering, paging
 
 
 class HelpSentinel(str):
@@ -30,9 +30,10 @@ class ShellishParser(argparse.ArgumentParser):
                'noted parenthetically to the right of the argument ' \
                'description.'
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, command, **kwargs):
         self._env_actions = {}
-        super().__init__(*args, **kwargs)
+        self._command = command
+        super().__init__(command.name, **kwargs)
 
     def bind_env(self, action, env):
         """ Bind an environment variable to an argument action.  The env
@@ -93,6 +94,14 @@ class ShellishParser(argparse.ArgumentParser):
             formatter.end_section()
         formatter.add_text(self.epilog)
         return formatter.format_help()
+
+    def print_help(self, *args, **kwargs):
+        """ Add pager support to help output. """
+        if self._command.session.allow_pager:
+            with paging.pager_redirect(**self._command.get_pager_spec()):
+                return super().print_help(*args, **kwargs)
+        else:
+                return super().print_help(*args, **kwargs)
 
     def add_argument(self, *args, help=HELP_SENTINEL, **kwargs):
         return super().add_argument(*args, help=help, **kwargs)

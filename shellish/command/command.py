@@ -325,7 +325,7 @@ class Command(eventing.Eventer):
                 fulldesc = self.desc
         else:
             fulldesc = self.title
-        return self.ArgumentParser(self.name, description=fulldesc,
+        return self.ArgumentParser(self, description=fulldesc,
                                    formatter_class=self.ArgumentFormatter)
 
     def attach_session(self):
