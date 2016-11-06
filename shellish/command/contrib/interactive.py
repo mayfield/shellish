@@ -10,6 +10,7 @@ class Help(command.Command):
     """ Show help for a command. """
 
     name = 'help'
+    use_pager = True
 
     def setup_args(self, parser):
         self.add_argument('command', nargs='?', complete=self.command_choices,
@@ -18,12 +19,6 @@ class Help(command.Command):
     def command_choices(self, prefix, args):
         return frozenset(x for x in self.parent.subcommands
                          if x.startswith(prefix))
-
-    def find_root(self):
-        cmd = self
-        while cmd.parent:
-            cmd = cmd.parent
-        return cmd
 
     def run(self, args):
         if not args.command:
@@ -46,8 +41,7 @@ class Help(command.Command):
                 formatter.add_arguments(x._group_actions)
                 formatter.end_section()
                 break
-        ap._print_message(formatter.format_help())
-        print()
+        print(formatter.format_help())
         print('  ALIAS')
         for k, v in self.session.aliases.items():
             print('    %-13s%s %s' % (k, rendering.beststr(' ⇨', '->'),
