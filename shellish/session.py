@@ -33,7 +33,7 @@ class Session(eventing.Eventer):
     completer_delim_includes = frozenset()
     completer_delim_excludes = frozenset('-+@:/~*')
     pad_completion = True
-    allow_pager = True
+    allow_pager = bool(os.environ.get('PAGER', True))
 
     @property
     def config_file(self):
