@@ -10,6 +10,7 @@
 ### Added
 - Subcommand support for `env` and `autoenv` arguments.
 - Sanitize autoenv generated env keys.
+- Pager support for help output.
 
 ### Changed
 - Default behavior of subcommand is to print help instead of just usage.
