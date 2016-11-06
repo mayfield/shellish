@@ -136,8 +136,7 @@ class VTMLHelpFormatter(argparse.HelpFormatter):
 
         if '%(default)' not in help and \
            action.default not in (argparse.SUPPRESS, None):
-            defaulting_nargs = [argparse.OPTIONAL, argparse.ZERO_OR_MORE]
-            if action.option_strings or action.nargs in defaulting_nargs:
+            if action.option_strings and action.nargs != 0:
                 if isinstance(action.default, io.IOBase):
                     default = action.default.name
                 else:
