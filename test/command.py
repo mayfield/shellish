@@ -51,12 +51,12 @@ class TestNesting(unittest.TestCase):
 class CommandCompose(unittest.TestCase):
 
     def test_naked(self):
-        a = shellish.Command()
+        a = shellish.Command(name='a')
         self.assertRaises(SystemExit, a, argv='')
 
     def test_onlyrun(self):
         ok = object()
-        a = shellish.Command(run=lambda _: ok)
+        a = shellish.Command(name='a', run=lambda _: ok)
         self.assertIs(a(argv=''), ok)
 
     def test_allrunners(self):
@@ -64,24 +64,17 @@ class CommandCompose(unittest.TestCase):
         def runner(args, **ign):
             nonlocal refcnt
             refcnt += 1
-        a = shellish.Command(prerun=runner, run=runner, postrun=runner)
+        a = shellish.Command(name='a', prerun=runner, run=runner,
+                             postrun=runner)
         a(argv='')
         self.assertEqual(refcnt, 3)
 
-    def test_subcommand_nameless(self):
-        a = shellish.Command()
-        b = shellish.Command()
-        self.assertRaises(TypeError, a.add_subcommand, b)
-
-    def test_subcommand_name_after_init(self):
-        a = shellish.Command()
-        b = shellish.Command()
-        b.name = 'okay'
-        a.add_subcommand(b)
+    def test_command_nameless(self):
+        self.assertRaises(RuntimeError, shellish.Command)
 
     def test_subcommand_name_at_construct(self):
-        a = shellish.Command()
-        b = shellish.Command(name='okay')
+        a = shellish.Command(name='a')
+        b = shellish.Command(name='b')
         a.add_subcommand(b)
 
 
@@ -99,7 +92,7 @@ class CommandFileArguments(unittest.TestCase):
     def test_file_argument_defaults_not_found(self):
         def run(args):
             self.assertRaises(FileNotFoundError, args.foo().__enter__)
-        cmd = shellish.Command(run=run)
+        cmd = shellish.Command(name='test', run=run)
         cmd.add_file_argument('--foo')
         cmd(argv='--foo doesnotexist')
 
@@ -115,7 +108,7 @@ class CommandFileArguments(unittest.TestCase):
                 self.assertIs(f, stdin_setinel)
                 self.assertFalse(flushed)
             self.assertTrue(flushed)
-        cmd = shellish.Command(run=run)
+        cmd = shellish.Command(name='test', run=run)
         cmd.add_file_argument('--foo')
         stdin = sys.stdin
         sys.stdin = stdin_setinel
@@ -128,7 +121,7 @@ class CommandFileArguments(unittest.TestCase):
         def run(args):
             with args.foo as f:
                 self.assertIs(f, sys.stdout)
-        cmd = shellish.Command(run=run)
+        cmd = shellish.Command(name='test', run=run)
         cmd.add_file_argument('--foo', mode='w')
         cmd(argv='--foo -')
 
@@ -138,7 +131,7 @@ class CommandFileArguments(unittest.TestCase):
                 self.assertTrue(f.name.endswith('exists'))
                 self.assertTrue(f.mode, 'r')
         open('exists', 'w').close()
-        cmd = shellish.Command(run=run)
+        cmd = shellish.Command(name='test', run=run)
         cmd.add_file_argument('--foo', mode='r')
         cmd(argv='--foo exists')
         cmd(argv='--foo ./exists')
@@ -148,6 +141,6 @@ class CommandFileArguments(unittest.TestCase):
             with args.foo as f:
                 self.assertEqual(f.name, 'makethis')
                 f.write('ascii is okay')
-        cmd = shellish.Command(run=run)
+        cmd = shellish.Command(name='test', run=run)
         cmd.add_file_argument('--foo', mode='w')
         cmd(argv='--foo makethis')

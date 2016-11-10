@@ -57,14 +57,14 @@ class ArgumentCompletions(unittest.TestCase):
         self.assertEqual(self.complete(cmd, '--foo v '), set())
 
     def test_one_bool_argument_consumed(self):
-        cmd = shellish.Command()
+        cmd = shellish.Command(name='cmd')
         cmd.add_argument('--foo', action='store_true')
         self.assertEqual(self.complete(cmd, '--fo'), {'--foo'})
         self.assertEqual(self.complete(cmd, '--foo'), {'--foo'})
         self.assertEqual(self.complete(cmd, '--foo '), set())
 
     def test_many_bool_arguments_consumed(self):
-        cmd = shellish.Command()
+        cmd = shellish.Command(name='cmd')
         cmd.add_argument('--foo', action='store_true')
         cmd.add_argument('--bar', action='store_true')
         self.assertEqual(self.complete(cmd, '--fo'), {'--foo'})
@@ -90,7 +90,7 @@ class ArgumentCompletions(unittest.TestCase):
         self.assertEqual(self.complete(cmd, '--bar value --foo value '), set())
 
     def test_file_arguments(self):
-        cmd = shellish.Command()
+        cmd = shellish.Command(name='cmd')
         cmd.add_file_argument('--foo')
         with tempfile.TemporaryDirectory() as tmp:
             files = {'./one', './two'}
@@ -112,7 +112,7 @@ class ArgumentCompletions(unittest.TestCase):
             def setup_args(self, parser):
                 p = parser.add_mutually_exclusive_group()
                 self.add_argument('--foo', parser=p, complete=completer)
-        T()
+        T(name='t')
 
 
 class TestSysComplete(unittest.TestCase):

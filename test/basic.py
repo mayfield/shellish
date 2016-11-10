@@ -12,18 +12,18 @@ class CommandSanity(unittest.TestCase):
         class Foo(shellish.Command):
             """ foo """
             pass
-        Foo()
-        shellish.Command()
+        Foo(name='foo')
+        shellish.Command(name='test')
 
     def test_no_title_desc_by_subclass(self):
         class Foo(shellish.Command):
             pass
-        f = Foo()
+        f = Foo(name='foo')
         self.assertEqual(f.title, None)
         self.assertEqual(f.desc, None)
 
     def test_no_title_desc_by_compose(self):
-        f = shellish.Command()
+        f = shellish.Command(name='foo')
         self.assertEqual(f.title, None)
         self.assertEqual(f.desc, None)
 
@@ -31,7 +31,7 @@ class CommandSanity(unittest.TestCase):
         class Foo(shellish.Command):
             title = 'foo'
             desc = 'bar'
-        f = Foo()
+        f = Foo(name='foo')
         self.assertEqual(f.title, 'foo')
         self.assertEqual(f.desc, 'bar')
 
@@ -39,7 +39,7 @@ class CommandSanity(unittest.TestCase):
         class Foo(shellish.Command):
             """ foo 
             bar """
-        f = Foo()
+        f = Foo(name='foo')
         self.assertEqual(f.title, 'foo')
         self.assertEqual(f.desc, 'bar')
 
@@ -47,7 +47,7 @@ class CommandSanity(unittest.TestCase):
         class Foo(shellish.Command):
             """foo
             bar"""
-        f = Foo()
+        f = Foo(name='foo')
         self.assertEqual(f.title, 'foo')
         self.assertEqual(f.desc, 'bar')
 
@@ -56,7 +56,7 @@ class CommandSanity(unittest.TestCase):
             """ foo 
 
             bar """
-        f = Foo()
+        f = Foo(name='foo')
         self.assertEqual(f.title, 'foo')
         self.assertEqual(f.desc, 'bar')
 
@@ -65,7 +65,7 @@ class CommandSanity(unittest.TestCase):
             """
             foo
             bar """
-        f = Foo()
+        f = Foo(name='foo')
         self.assertEqual(f.title, 'foo')
         self.assertEqual(f.desc, 'bar')
 
@@ -74,7 +74,7 @@ class CommandSanity(unittest.TestCase):
             """foo
             bar
             """
-        f = Foo()
+        f = Foo(name='foo')
         self.assertEqual(f.title, 'foo')
         self.assertEqual(f.desc, 'bar')
 
@@ -84,27 +84,27 @@ class CommandSanity(unittest.TestCase):
             foo
             bar
             """
-        f = Foo()
+        f = Foo(name='foo')
         self.assertEqual(f.title, 'foo')
         self.assertEqual(f.desc, 'bar')
 
     def test_empty_docstring(self):
         class Foo(shellish.Command):
             """"""
-        f = Foo()
+        f = Foo(name='foo')
         self.assertEqual(f.title, None)
         self.assertEqual(f.desc, None)
 
         class Foo(shellish.Command):
             """ """
-        f = Foo()
+        f = Foo(name='foo')
         self.assertEqual(f.title, None)
         self.assertEqual(f.desc, None)
 
         class Foo(shellish.Command):
             """
             """
-        f = Foo()
+        f = Foo(name='foo')
         self.assertEqual(f.title, None)
         self.assertEqual(f.desc, None)
 
@@ -112,6 +112,6 @@ class CommandSanity(unittest.TestCase):
             """
 
             """
-        f = Foo()
+        f = Foo(name='foo')
         self.assertEqual(f.title, None)
         self.assertEqual(f.desc, None)

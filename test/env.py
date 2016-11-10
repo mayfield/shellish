@@ -16,19 +16,19 @@ class EnvTests(unittest.TestCase):
         os.environ[key] = value
 
     def test_simple_env_noset(self):
-        c = shellish.Command()
+        c = shellish.Command(name='c')
         c.add_argument('--foo', env='FOO')
         c.run = lambda args: args
         self.assertEqual(c(argv='--foo bar').foo, 'bar')
         self.assertEqual(c(argv='').foo, None)
 
     def test_dup_env(self):
-        c = shellish.Command()
+        c = shellish.Command(name='c')
         c.add_argument('--foo', env='FOO')
         self.assertRaises(ValueError, c.add_argument, '--bar', env='FOO')
 
     def test_simple_env_set(self):
-        c = shellish.Command()
+        c = shellish.Command(name='c')
         c.add_argument('--foo', env='SHELLISH_TEST_FOO')
         c.run = lambda args: args
         self.setenv('SHELLISH_TEST_FOO', 'from_env')
@@ -36,7 +36,7 @@ class EnvTests(unittest.TestCase):
         self.assertEqual(c(argv='').foo, 'from_env')
 
     def test_override_default(self):
-        c = shellish.Command()
+        c = shellish.Command(name='c')
         c.add_argument('--foo', default='foodef', env='SHELLISH_TEST_FOO')
         c.run = lambda args: args
         self.assertEqual(c(argv='').foo, 'foodef')

@@ -70,6 +70,8 @@ class Command(eventing.Eventer):
                          'postcomplete'])
         if name:
             self.name = name
+        if self.name is None:
+            raise RuntimeError("Command missing `name` attribute")
         if type(self) is not Command:
             alt_title, alt_desc = parse_docstring(self)
         else:
