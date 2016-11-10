@@ -2,6 +2,7 @@
 import unittest
 from shellish.data import hone_cache, ttl_cache, TTLMapping
 
+
 class TestTTLMapping(unittest.TestCase):
 
     def ageless(self):
@@ -77,10 +78,10 @@ class TestTTLMapping(unittest.TestCase):
         self.assertEqual(c, {})
         c[1] = 11
         self.assertEqual(len(c), 1)
-        self.assertEqual(c, {1:11})
+        self.assertEqual(c, {1: 11})
         c[2] = 22
         self.assertEqual(len(c), 1)
-        self.assertEqual(c, {2:22})
+        self.assertEqual(c, {2: 22})
 
     def test_size_ttl_bounding(self):
         for maxsize in (None, 5):
@@ -91,7 +92,7 @@ class TestTTLMapping(unittest.TestCase):
             self.assertEqual(c, {})
             c[1] = 1
             self.assertEqual(len(c), 1)
-            self.assertEqual(c, {1:1})
+            self.assertEqual(c, {1: 1})
             timeval = 3
             self.assertEqual(len(c), 0)
             self.assertEqual(c, {})
@@ -101,7 +102,7 @@ class TestTTLMapping(unittest.TestCase):
             timeval = 1
             timer = lambda: timeval
             c = TTLMapping(ttl=1, timer=timer, maxsize=128)
-            c.update({1:11, 2:22})
+            c.update({1: 11, 2: 22})
             keys = list(c)
             self.assertEqual(list(keys), [1, 2])
             fast = iter(c)
@@ -122,6 +123,7 @@ class TestTTLCache(unittest.TestCase):
 
     def test_pos_args(self):
         i = 0
+
         @ttl_cache(None)
         def test(a, b, c):
             nonlocal i
@@ -138,6 +140,7 @@ class TestTTLCache(unittest.TestCase):
 class TestHoneCache(unittest.TestCase):
 
     def test_default_finder(self):
+
         @hone_cache()
         def test(prefix):
             return set(x for x in {'foo', 'foobar', 'baz'}
@@ -156,10 +159,11 @@ class TestHoneCache(unittest.TestCase):
     def test_tito(self):
         """ Type In Type Out """
         for xtype in list, set, tuple, frozenset:
+
             @hone_cache()
             def test(prefix):
                 return xtype(x for x in ('foo', 'foobar', 'baz')
-                           if x.startswith(prefix))
+                             if x.startswith(prefix))
             self.assertEqual(test('f'), xtype(('foo', 'foobar')))
             self.assertEqual(test.cache_info().misses, 1)
             self.assertEqual(test('fo'), xtype(('foo', 'foobar')))
@@ -179,6 +183,7 @@ class TestHoneCache(unittest.TestCase):
                 }
             }
         }
+
         @hone_cache(refineby='container')
         def test(path):
             offt = tree
@@ -200,28 +205,7 @@ class TestHoneCache(unittest.TestCase):
                 }
             }]
         }
-        @hone_cache(refineby='container')
-        def test(path):
-            offt = tree
-            for x in path:
-                offt = offt[x]
-            return offt
-        self.assertEqual(test(('level1',)), tree['level1'])
-        self.assertEqual(test.cache_info().misses, 1)
-        self.assertEqual(test(('level1',)), tree['level1'])
-        self.assertEqual(test.cache_info().hits, 1)
-        self.assertEqual(test(('level1', 0, 'level2')),
-                         tree['level1'][0]['level2'])
-        self.assertEqual(test.cache_info().partials, 1)
 
-    def test_path_finder_mixed_type(self):
-        tree = {
-            "level1": [{
-                "level2": {
-                    "leaf": 123
-                }
-            }]
-        }
         @hone_cache(refineby='container')
         def test(path):
             offt = tree

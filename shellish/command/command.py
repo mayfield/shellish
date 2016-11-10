@@ -45,7 +45,7 @@ class Command(eventing.Eventer):
     completion_excludes = {'--help'}
     arg_label_fmt = '__command[%d]__'
     env_scrub_re = '[^\w\s\-_]'  # chars scrubed from env vars
-    env_flatten_re = '[\s\-_]+' # chars converted to underscores
+    env_flatten_re = '[\s\-_]+'  # chars converted to underscores
 
     def setup_args(self, parser):
         """ Subclasses should provide any setup for their parsers here. """

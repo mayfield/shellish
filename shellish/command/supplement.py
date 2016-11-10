@@ -146,7 +146,6 @@ class VTMLHelpFormatter(argparse.HelpFormatter):
         return str(vhelp.plain() if not sys.stdout.isatty() else vhelp)
 
 
-
 class SafeFileContext(object):
     """ Used by SafeFileType to provide a file-like context manager. """
 

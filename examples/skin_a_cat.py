@@ -12,6 +12,7 @@ def cat1():
     """ Auto command cannot interact. """
     pass
 
+
 @shellish.autocommand
 def sub1(optional:int=1):
     print("ran subcommand1", optional)
@@ -28,7 +29,7 @@ sub2 = shellish.Command(name='sub2', title='composition cat sub')
 sub2.add_argument('--optional', type=int, default=2)
 sub2.run = lambda args: print("ran subcommand2", args.optional)
 cat2.add_subcommand(sub2)
-#cat2()
+# cat2()
 
 
 ###############

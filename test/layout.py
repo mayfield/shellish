@@ -418,12 +418,12 @@ class TreeData(unittest.TestCase):
 
     def test_treeprint_dict(self):
         L.treeprint({})
-        L.treeprint({1:1})
-        L.treeprint({"1":1})
-        L.treeprint({"1":"1"})
-        L.treeprint({1:"1"})
-        L.treeprint({"a":"1"})
-        L.treeprint({"a":1})
+        L.treeprint({1: 1})
+        L.treeprint({"1": 1})
+        L.treeprint({"1": "1"})
+        L.treeprint({1: "1"})
+        L.treeprint({"a": "1"})
+        L.treeprint({"a": 1})
         L.treeprint({"a": [1, 2]})
         L.treeprint({"a": ["1", 2]})
         L.treeprint({"a": ["1", "a"]})
@@ -437,19 +437,19 @@ class TreeData(unittest.TestCase):
 
     def test_treeprint_list(self):
         L.treeprint([])
-        L.treeprint([1,2])
-        L.treeprint(["a","b"])
-        L.treeprint([{},"b"])
-        L.treeprint([{1,2},"b"])
+        L.treeprint([1, 2])
+        L.treeprint(["a", "b"])
+        L.treeprint([{}, "b"])
+        L.treeprint([{1, 2}, "b"])
         L.treeprint([[]])
         L.treeprint([[1]])
-        L.treeprint([1,[1]])
+        L.treeprint([1, [1]])
         L.treeprint([None])
 
     def test_treeprint_tuple(self):
         L.treeprint(())
-        L.treeprint((1,2))
-        L.treeprint(("a","b"))
+        L.treeprint((1, 2))
+        L.treeprint(("a", "b"))
         L.treeprint(({}, {}))
 
     def test_treeprint_numbers(self):
