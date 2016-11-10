@@ -14,6 +14,7 @@
 
 ### Changed
 - Default behavior of subcommand is to print help instead of just usage.
+- Make name required at Command construction.
 
 
 ## [3] - 2016-09-14
