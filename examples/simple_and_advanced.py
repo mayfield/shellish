@@ -19,13 +19,12 @@ def subcommand2(firstarg, second, *args, optional=1, optionalstr:str=None,
           mustbeint, kwargs)
 
 
-class Root(shellish.InteractiveCommand):
+class Root(shellish.Command):
     """ Shellify some autocommands. """
 
     name = 'root'
 
-    def __init__(self):
-        super().__init__()
+    def setup_args(self, parser):
         self.add_subcommand(subcommand1)
         self.add_subcommand(subcommand2)
 

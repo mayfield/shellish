@@ -1,7 +1,7 @@
 import shellish
 
-class Hello(shellish.InteractiveCommand):
-    """ I am a required docstring used to document the --help output! """
+class Hello(shellish.Command):
+    """ I am a docstring used to document the --help output! """
 
     name = 'hello'
 

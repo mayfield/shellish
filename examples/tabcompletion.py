@@ -13,6 +13,6 @@ def thing_completer(prefix, args):
 thing = shellish.Command(name='thing', title='Demo Tab Completion')
 thing.add_argument('--choices', choices=['one', 'two', 'three'])
 thing.add_argument('--function', complete=thing_completer)
-root = shellish.InteractiveCommand()
+root = shellish.Command(name='root')
 root.add_subcommand(thing)
-root()
+root.get_or_create_session().run_loop()
