@@ -9,6 +9,7 @@ import shutil
 import subprocess
 import sys
 import termios
+import warnings
 
 
 @contextlib.contextmanager
@@ -30,10 +31,16 @@ def pager_process(pagercmd, stdout=None, stderr=None):
         stdout = sys.stdout
     if stderr is None:
         stderr = sys.stderr
+    # When running interactively `less` does not handle window resizes
+    # unless we explicitly hardcode the new term size into the env.  There
+    # is currently a bug in docker for mac that sometimes breaks this test.
     env = os.environ.copy()
-    w, h = shutil.get_terminal_size()
-    env['COLUMNS'] = str(w)
-    env['LINES'] = str(h)
+    termsize = shutil.get_terminal_size()
+    if 0 in termsize:
+        warnings.warn("Could not determine terminal size")
+    else:
+        env['COLUMNS'] = str(termsize.columns)
+        env['LINES'] = str(termsize.lines)
     return subprocess.Popen(pagercmd, shell=True, universal_newlines=True,
                             bufsize=1, stdin=subprocess.PIPE, stdout=stdout,
                             stderr=stderr, env=env)

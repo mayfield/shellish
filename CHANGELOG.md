@@ -6,6 +6,7 @@
 - Remove `foo` cruft from default log format in the new log handler.
 - Cleaner help formatting when doc-strings and help kwargs are omitted.
 - Removed double display of defaults when using `autocommand`.
+- Workaround for flaky term size detection with docker for mac.
 
 ### Added
 - Subcommand support for `env` and `autoenv` arguments.
