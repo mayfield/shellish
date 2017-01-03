@@ -2,6 +2,9 @@
 
 
 ## [Unreleased] - unreleased
+
+
+## [4] - 2017-01-03
 ### Fixed
 - Remove `foo` cruft from default log format in the new log handler.
 - Cleaner help formatting when doc-strings and help kwargs are omitted.
@@ -224,7 +227,8 @@
 - First stable release
 
 
-[unreleased]: https://github.com/mayfield/shellish/compare/v3...HEAD
+[unreleased]: https://github.com/mayfield/shellish/compare/v4...HEAD
+[4]: https://github.com/mayfield/shellish/compare/v3...v4
 [3]: https://github.com/mayfield/shellish/compare/v2.4...v3
 [2.4]: https://github.com/mayfield/shellish/compare/v2.3...v2.4
 [2.3]: https://github.com/mayfield/shellish/compare/v2.2...v2.3
