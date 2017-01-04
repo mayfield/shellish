@@ -188,7 +188,7 @@ class HTMLConversion(unittest.TestCase):
         R.htmlrender('')
 
     def test_parity(self):
-        for tag in ('b', 'u'):
+        for tag in ('b', 'u', 'i'):
             markup = '<%s>stuff</%s>' % (tag, tag)
             self.assertEqual(R.html2vtml(markup), markup)
 

@@ -91,6 +91,12 @@ class HTMLConv(parser.HTMLParser):
         self.buf.append('</b>')
     handle_end_strong = handle_end_b
 
+    def handle_start_i(self, tag, attrs):
+        self.buf.append('<i>')
+
+    def handle_end_i(self, tag, attrs):
+        self.buf.append('</i>')
+
     def handle_start_u(self, tag, attrs):
         self.buf.append('<u>')
     handle_start_em = handle_start_u

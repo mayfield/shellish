@@ -2,6 +2,9 @@
 
 
 ## [Unreleased] - unreleased
+### Added
+- Added `<i>` italics tag support to VTML.  Tested with OSX Terminal and
+  gnome-terminal.
 
 
 ## [4] - 2017-01-03

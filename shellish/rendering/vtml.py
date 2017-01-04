@@ -28,6 +28,7 @@ class VTMLParser(html.parser.HTMLParser):
         'normal': 0,
         'b': 1,
         'dim': 2,
+        'i': 3,
         'u': 4,
         'blink': 5,
         'reverse': 7,
