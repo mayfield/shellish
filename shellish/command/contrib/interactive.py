@@ -42,10 +42,11 @@ class Help(command.Command):
                 formatter.end_section()
                 break
         print(formatter.format_help())
-        print('  ALIAS')
-        for k, v in self.session.aliases.items():
-            print('    %-13s%s %s' % (k, rendering.beststr(' ⇨', '->'),
-                  v.strip()))
+        if self.session.aliases:
+            print('  ALIAS')
+            for k, v in self.session.aliases.items():
+                print('    %-13s%s %s' % (k, rendering.beststr(' ⇨', '->'),
+                      v.strip()))
 
 
 class Exit(command.Command):
