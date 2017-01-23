@@ -38,7 +38,7 @@ def pager_process(pagercmd, stdout=None, stderr=None):
     termsize = shutil.get_terminal_size()
     if 0 in termsize:
         warnings.warn("Could not determine terminal size")
-        termsize = os.terminal_size(80, 24)
+        termsize = os.terminal_size((80, 24))
     env['COLUMNS'] = str(termsize.columns)
     env['LINES'] = str(termsize.lines)
     return subprocess.Popen(pagercmd, shell=True, universal_newlines=True,
