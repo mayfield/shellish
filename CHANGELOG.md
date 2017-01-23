@@ -2,6 +2,12 @@
 
 
 ## [Unreleased] - unreleased
+
+
+## [4.1] - 2017-01-23
+### Fixed
+- Fix terminal size detection when docker-for-mac bug is detected.
+
 ### Added
 - Added `<i>` italics tag support to VTML.  Tested with OSX Terminal and
   gnome-terminal.
@@ -230,7 +236,8 @@
 - First stable release
 
 
-[unreleased]: https://github.com/mayfield/shellish/compare/v4...HEAD
+[unreleased]: https://github.com/mayfield/shellish/compare/v4.1...HEAD
+[4.1]: https://github.com/mayfield/shellish/compare/v4...v4.1
 [4]: https://github.com/mayfield/shellish/compare/v3...v4
 [3]: https://github.com/mayfield/shellish/compare/v2.4...v3
 [2.4]: https://github.com/mayfield/shellish/compare/v2.3...v2.4
