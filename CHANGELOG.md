@@ -2,6 +2,9 @@
 
 
 ## [Unreleased] - unreleased
+### Changed
+- Honor PAGER env var when present.
+- Make default pager's search case insensitive.
 
 
 ## [4.1] - 2017-01-23

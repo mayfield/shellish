@@ -57,13 +57,16 @@ class Session(eventing.Eventer):
         super().__init__()
 
     def default_config(self):
+        pager = os.environ.get('PAGER')
+        if not pager:
+            pager = "less -i -X -R -F -P's{desc}, line %l" \
+                    "(press h for help or q to quit)'"
         return {
             "ui": {
                 "prompt_format": self.default_prompt_format
             },
             "core": {
-                "pager": "less -X -R -F -P's{desc}, line %l "
-                         "(press h for help or q to quit)'"
+                "pager": pager
             }
         }
 
