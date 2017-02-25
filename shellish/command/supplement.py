@@ -142,8 +142,78 @@ class VTMLHelpFormatter(argparse.HelpFormatter):
                 else:
                     default = action.default
                 prefix = '[<b>%s</b>] %s ' % (default, prefix)
-        vhelp = rendering.vtmlrender('%s<blue>%s</blue>' % (prefix, help))
-        return str(vhelp.plain() if not sys.stdout.isatty() else vhelp)
+        return prefix, help
+
+    def _format_usage(self, *args, **kwargs):
+        usage = '\n%s' % super()._format_usage(*args, **kwargs)
+        return '\n'.join(str(rendering.vtmlrender('<red>%s</red>' % x))
+                         for x in usage.split('\n'))
+
+    def _format_action(self, action):
+        # determine the required width and the entry label
+        help_position = min(self._action_max_length + 2,
+                            self._max_help_position)
+        help_width = max(self._width - help_position, 11)
+        action_width = help_position - self._current_indent - 2
+        action_header = self._format_action_invocation(action)
+
+        # no help; start on same line and add a final newline
+        if not action.help:
+            tup = self._current_indent, '', action_header
+            action_header = '%*s%s\n' % tup
+
+        # short action name; start on the same line and pad two spaces
+        elif len(action_header) <= action_width:
+            tup = self._current_indent, '', action_width, action_header
+            action_header = '%*s%-*s  ' % tup
+            indent_first = 0
+
+        # long action name; start on the next line
+        else:
+            tup = self._current_indent, '', action_header
+            action_header = '%*s%s\n' % tup
+            indent_first = help_position
+
+        # collect the pieces of the action help
+        parts = [action_header]
+
+        # if there was help for the action, add lines of help text
+        if action.help:
+            help_prefix, help_text = self._expand_help(action)
+            help_lines = []
+            for x in self._split_lines(help_text, help_width):
+                line = rendering.vtmlrender('<blue>%s</blue>' % x)
+                line = str(line.plain() if not sys.stdout.isatty() else line)
+                help_lines.append(line)
+            if help_lines:
+                parts.append('%*s%s\n' % (indent_first, help_prefix, help_lines[0]))
+            for line in help_lines[1:]:
+                parts.append('%*s%s\n' % (help_position, '', line))
+
+        # or add a newline if the description doesn't end with one
+        elif not action_header.endswith('\n'):
+            parts.append('\n')
+
+        # if there are any sub-actions, add their help as well
+        for subaction in self._iter_indented_subactions(action):
+            parts.append(self._format_action(subaction))
+
+        # return a single string
+        return self._join_parts(parts)
+
+    def _expand_help(self, action):
+        params = dict(vars(action), prog=self._prog)
+        for name in list(params):
+            if params[name] is argparse.SUPPRESS:
+                del params[name]
+        for name in list(params):
+            if hasattr(params[name], '__name__'):
+                params[name] = params[name].__name__
+        if params.get('choices') is not None:
+            choices_str = ', '.join([str(c) for c in params['choices']])
+            params['choices'] = choices_str
+        prefix, text = self._get_help_string(action)
+        return prefix, (text % params)
 
 
 class SafeFileContext(object):
