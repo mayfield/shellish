@@ -2,6 +2,11 @@
 
 
 ## [Unreleased] - unreleased
+### Fixed
+- Colorization fixes for wrapped help output.
+
+### Changed
+- Red usage output on help.
 
 
 ## [4.2] - 2017-02-25
