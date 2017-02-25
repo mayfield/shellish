@@ -2,6 +2,9 @@
 
 
 ## [Unreleased] - unreleased
+
+
+## [4.2] - 2017-02-25
 ### Changed
 - Honor PAGER env var when present.
 - Make default pager's search case insensitive.
@@ -239,7 +242,8 @@
 - First stable release
 
 
-[unreleased]: https://github.com/mayfield/shellish/compare/v4.1...HEAD
+[unreleased]: https://github.com/mayfield/shellish/compare/v4.2...HEAD
+[4.2]: https://github.com/mayfield/shellish/compare/v4.1...v4.2
 [4.1]: https://github.com/mayfield/shellish/compare/v4...v4.1
 [4]: https://github.com/mayfield/shellish/compare/v3...v4
 [3]: https://github.com/mayfield/shellish/compare/v2.4...v3
