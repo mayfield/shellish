@@ -2,6 +2,9 @@
 
 
 ## [Unreleased] - unreleased
+
+
+## [4.3] - 2017-02-25
 ### Fixed
 - Colorization fixes for wrapped help output.
 
@@ -247,7 +250,8 @@
 - First stable release
 
 
-[unreleased]: https://github.com/mayfield/shellish/compare/v4.2...HEAD
+[unreleased]: https://github.com/mayfield/shellish/compare/v4.3...HEAD
+[4.3]: https://github.com/mayfield/shellish/compare/v4.2...v4.3
 [4.2]: https://github.com/mayfield/shellish/compare/v4.1...v4.2
 [4.1]: https://github.com/mayfield/shellish/compare/v4...v4.1
 [4]: https://github.com/mayfield/shellish/compare/v3...v4
