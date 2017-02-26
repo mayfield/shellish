@@ -146,7 +146,7 @@ class VTMLHelpFormatter(argparse.HelpFormatter):
 
     def _format_usage(self, *args, **kwargs):
         usage = '\n%s' % super()._format_usage(*args, **kwargs)
-        return '\n'.join(str(rendering.vtmlrender('<red>%s</red>' % x))
+        return '\n'.join(self.vtmlrender('<red>%s</red>' % x)
                          for x in usage.split('\n'))
 
     def _format_action(self, action):
@@ -180,13 +180,11 @@ class VTMLHelpFormatter(argparse.HelpFormatter):
         # if there was help for the action, add lines of help text
         if action.help:
             help_prefix, help_text = self._expand_help(action)
-            help_lines = []
-            for x in self._split_lines(help_text, help_width):
-                line = rendering.vtmlrender('<blue>%s</blue>' % x)
-                line = str(line.plain() if not sys.stdout.isatty() else line)
-                help_lines.append(line)
-            if help_lines:
-                parts.append('%*s%s\n' % (indent_first, help_prefix, help_lines[0]))
+            help_lines = [self.vtmlrender('<blue>%s</blue>' % x)
+                          for x in self._split_lines(help_text, help_width)]
+            if not help_lines:
+                help_lines = ['']
+            parts.append('%*s%s\n' % (indent_first, help_prefix, help_lines[0]))
             for line in help_lines[1:]:
                 parts.append('%*s%s\n' % (help_position, '', line))
 
