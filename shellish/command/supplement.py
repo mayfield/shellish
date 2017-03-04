@@ -184,7 +184,7 @@ class VTMLHelpFormatter(argparse.HelpFormatter):
                           for x in self._split_lines(help_text, help_width)]
             if not help_lines:
                 help_lines = ['']
-            parts.append('%*s%s\n' % (indent_first, help_prefix, help_lines[0]))
+            parts.append('%*s%s\n' % (indent_first, self.vtmlrender(help_prefix), help_lines[0]))
             for line in help_lines[1:]:
                 parts.append('%*s%s\n' % (help_position, '', line))
 
