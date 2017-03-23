@@ -2,6 +2,9 @@
 
 
 ## [Unreleased] - unreleased
+### Fixed
+- Nested pager usage would cause various problems
+- Defer SIGPIPE signal handling when paging.
 
 
 ## [4.3] - 2017-02-25
