@@ -6,10 +6,13 @@ import contextlib
 import fcntl
 import os
 import shutil
+import signal
 import subprocess
 import sys
 import termios
 import warnings
+
+_pager_active = False
 
 
 @contextlib.contextmanager
@@ -51,9 +54,10 @@ def pager_redirect(desc, *, pagercmd=None, istty=None, file=None,
                    substitutions=None):
     """ Redirect output to file/stdout to a pager process.  Care is taken to
     restore the controlling tty stdio files to their original state. """
+    global _pager_active
     if file is None:
         file = sys.stdout
-    if not pagercmd or not file.isatty():
+    if not pagercmd or not file.isatty() or _pager_active:
         yield
         return
     subs = {"desc": desc}
@@ -61,21 +65,23 @@ def pager_redirect(desc, *, pagercmd=None, istty=None, file=None,
         subs.update(substitutions)
     pagercmd = pagercmd.format(**subs)
     with tty_restoration():
-        stdout_save = sys.stdout
         p = pager_process(pagercmd)
+        if istty is None:
+            p.stdin.isatty = file.isatty
+        else:
+            p.stdin.isatty = lambda: istty
+        stdout_save = sys.stdout
+        sys.stdout = p.stdin
+        sigpipe_save = signal.getsignal(signal.SIGPIPE)
+        signal.signal(signal.SIGPIPE, signal.SIG_DFL)
+        _pager_active = True
         try:
-            if istty is None:
-                p.stdin.isatty = file.isatty
-            else:
-                p.stdin.isatty = lambda: istty
-            sys.stdout = p.stdin
             yield
         finally:
+            _pager_active = False
             sys.stdout = stdout_save
-            try:
-                p.stdin.close()
-            except BrokenPipeError:
-                pass
+            signal.signal(signal.SIGPIPE, sigpipe_save)
+            p.stdin.close()
             while p.poll() is None:
                 try:
                     p.wait()
