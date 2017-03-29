@@ -251,6 +251,12 @@ class TableDataSupport(unittest.TestCase):
         self.assertIn('One', out()[0])
         self.assertIn('foo', out()[-1])
 
+    def test_footers_alt_renderers(self):
+        for renderer in ('json', 'csv', 'plain', 'md'):
+            with L.Table(renderer=renderer, rows=[None, None]) as t:
+                t.print(['AB'])
+                t.print_footer('foobar')
+
     def test_gen_seed_over_under(self):
         for seed_max in range(12):
             output, t = self.table([None], width=1, column_padding=0)

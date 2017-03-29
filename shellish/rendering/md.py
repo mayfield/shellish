@@ -8,6 +8,7 @@ from . import html
 
 _md = markdown2.Markdown(extras=['fenced-code-blocks'])
 
+
 def mdconvert(markdown):
     html = _md.convert(markdown)
     return html[:-1]

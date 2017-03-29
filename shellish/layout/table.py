@@ -13,7 +13,8 @@ import re
 import shutil
 import sys
 import time
-from .. import rendering
+import warnings
+from ..rendering import beststr, vtmlprint, vtmlrender, VTMLBuffer
 
 
 class RowsNotFound(ValueError):
@@ -24,11 +25,10 @@ class RowsNotFound(ValueError):
 class Table(object):
     """ A visual layout for row oriented data (like csv).  Most of the code
     here is dedicated to fitting the data as losslessly as possible onto a
-    terminal screen.  The basic design goal is to fit your rows onto the
-    screen without overflowing;  However a table instance can be configured
-    to overflow if desired (clip=False).  For detailed help on using this
-    class, see the __init__ method, or use the helper function tabulate() for
-    simple use cases.
+    terminal screen.
+
+    For detailed help see `__init__()` or use the helper function tabulate()
+    for simple use cases.
 
     This class is also a context manager which is applicable for printing
     streams of data or when combined with output formats that require closing
@@ -37,9 +37,10 @@ class Table(object):
     column_padding = 2
     column_align = 'left'  # {left,right,center}
     title_align = 'left'
-    cliptext = rendering.beststr('…', '...')
+    cliptext = beststr('…', '...')
     column_minwidth = len(cliptext)
     renderer_types = {}
+    overflow_modes = 'clip', 'wrap', None
 
     # You probably shouldn't mess with these unless you really need custom
     # rendering performance.  Chances are you really don't and should
@@ -49,7 +50,7 @@ class Table(object):
     max_render_delay = 2
 
     def __init__(self, columns=None, headers=None, accessors=None, width=None,
-                 clip=None, flex=True, file=None, cliptext=None,
+                 clip=None, overflow=None, flex=True, file=None, cliptext=None,
                  column_minwidth=None, column_padding=None, column_align=None,
                  renderer=None, title=None, title_align=None, column_mask=None,
                  hide_header=False, hide_footer=False):
@@ -113,9 +114,22 @@ class Table(object):
         to use.  It is permissible to submit your entire data set at this
         point if you have enough memory.
 
-        By default the columns will clip text that overflows; Set .clip to
-        False to disable this behavior but be warned the table will not look
-        good. """
+        To control overflow of wide columns, set the .overflow argument to one
+        of the .overflow_modes.  None will defer handling to the renderer class
+        used for this table.  `clip` will shorten wide strings.  `wrap` will
+        continue long lines on the next row affecting the entire table output.
+        """
+        if clip is not None:
+            warnings.warn('clip is deprecated, use overflow=clip',
+                          DeprecationWarning)
+            if overflow is not None:
+                raise TypeError('`clip` and `overflow` are mutually exclusive')
+            elif clip:
+                overflow = 'clip'
+        if overflow not in self.overflow_modes:
+            raise TypeError("Invalid overflow mode: %s (choices: %s)" % (
+                overflow, ', '.join(map(str, self.overflow_modes))))
+        self.overflow = overflow
         self.title = title
         # Freeze the table definitions...
         try:
@@ -137,7 +151,6 @@ class Table(object):
             else:
                 renderer = 'terminal'
         self.renderer_class = self.lookup_renderer(renderer)
-        self.clip = clip
         if cliptext is not None:
             self.cliptext = cliptext
         if column_padding is not None:
@@ -211,10 +224,10 @@ class Table(object):
         title = 'table render settings' if title is None else title
         desc = 'Overrides for table render settings.' if desc is None else desc
         group = parser.add_argument_group(title, description=desc)
-        if 'no_clip' not in excludes:
-            group.add_argument('--no-clip', action='store_true',
-                               help='Do not clip the table output to fit the '
-                               'screen.')
+        if 'overflow' not in excludes:
+            choices = [x for x in cls.overflow_modes if x is not None]
+            group.add_argument('--overflow', choices=choices,
+                               help='Override the default overflow behavior.')
         if 'table_width' not in excludes:
             group.add_argument('--table-width', type=int, metavar='COLS',
                                help='Specify the table width in columns.')
@@ -229,8 +242,8 @@ class Table(object):
 
         def ns2table(ns):
             opts = {}
-            if ns.no_clip:
-                opts['clip'] = False
+            if ns.overflow is not None:
+                opts['overflow'] = ns.overflow
             if ns.table_width is not None:
                 opts['width'] = ns.table_width
             if ns.table_padding is not None:
@@ -378,7 +391,7 @@ class Table(object):
             return
         if not self.default_renderer:
             self.print([])
-        self.default_renderer.print_footer(content)
+        self.default_renderer.print_footer_raw(content)
 
 
 class TableRenderer(object):
@@ -389,8 +402,11 @@ class TableRenderer(object):
     definition. """
 
     name = None
-    clip_default = False
-    linebreak = rendering.beststr('—', '-')
+    overflow_default = None
+    linebreak = beststr('—', '-')
+    title_tpl = '\n<b>{:vtml}</b>\n'
+    header_tpl = '<reverse>{:vtml}</reverse>'
+    footer_tpl = '<dim>{:vtml}</dim>'
 
     def __init__(self, colspec=None, accessors=None, headers=None, table=None,
                  seed=None):
@@ -441,17 +457,30 @@ class TableRenderer(object):
                     return
         return list(self.render_data(constrained_feed())), seed_iter
 
-    def print_header(self):
-        """ Should write and flush output to a screen or file. """
-        raise NotImplementedError("Subclass impl required")
+    def print_headers(self, headers):
+        lines = [VTMLBuffer('').join(x) for x in self.format_row(headers)]
+        for line in lines:
+            print(self.cell_format(self.header_tpl.format(line)),
+                  file=self.file)
+
+    def print_title(self, title):
+        title = self.title_tpl.format(self.format_fullwidth(title))
+        print(self.cell_format(title), file=self.file)
+
+    def print_footer_raw(self, raw_content):
+        self.print_footer(self.cell_format(raw_content))
+
+    def print_footer(self, content):
+        row = self.format_fullwidth(content)
+        if not self.footers_drawn:
+            self.footers_drawn = True
+            self.print_linebreak()
+        print(self.cell_format(self.footer_tpl.format(row)), file=self.file)
 
     def cell_format(self, value):
         """ Subclasses should put any visual formatting specific to their
         rendering type here. """
-        return rendering.vtmlrender(value)
-
-    def get_overflower(self, width):
-        return operator.methodcaller('clip', width, self.cliptext)
+        return vtmlrender(value)
 
     def get_aligner(self, alignment, width):
         align_funcs = {
@@ -465,15 +494,15 @@ class TableRenderer(object):
         """ Capture state from the table instance and store locally for safe
         keeping.  This is not specifically required but helps in keeping with
         our pseudo "frozen" nature. """
-        for x in ('file', 'clip', 'cliptext', 'flex', 'width', 'title',
+        for x in ('file', 'overflow', 'cliptext', 'flex', 'width', 'title',
                   'title_align', 'max_render_prefill', 'max_render_delay',
                   'min_render_prefill', 'column_mask', 'hide_header'):
             setattr(self, x, getattr(table, x))
         if self.width is None:
             self.width = shutil.get_terminal_size()[0] \
                          if self.file is sys.stdout else 80
-        if self.clip is None:
-            self.clip = self.clip_default
+        if self.overflow is None:
+            self.overflow = self.overflow_default
 
     def render_data(self, data):
         """ Get the data from the raw list of objects. """
@@ -488,39 +517,59 @@ class TableRenderer(object):
             yield [self.cell_format(access(obj)) for access in self.accessors]
 
     def format_row(self, items):
-        """ Apply overflow, justification and padding to a row. """
-        return [formatter(x) for x, formatter in zip(items, self.formatters)]
+        """ Apply overflow, justification and padding to a row.  Returns lines
+        (plural) of rendered text for the row. """
+        assert all(isinstance(x, VTMLBuffer) for x in items)
+        raw_lines = (fn(x) for x, fn in zip(items, self.formatters))
+        for line in itertools.zip_longest(*raw_lines):
+            line = list(line)
+            for i, col in enumerate(line):
+                if col is None:
+                    # Pad empty column.
+                    line[i] = self.formatters[i](VTMLBuffer())[0]
+            yield line
 
     def format_fullwidth(self, value):
         """ Return a full width column. Note that the padding is inherited
         from the first cell which inherits from column_padding. """
-        if not isinstance(value, rendering.VTML):
-            value = rendering.VTML(value or '')
+        assert isinstance(value, VTMLBuffer)
         pad = self.colspec[0]['padding']
         fmt = self.make_formatter(self.width - pad, pad, self.title_align)
-        return fmt(value)
+        return VTMLBuffer('\n').join(fmt(value))
 
     def print_rendered(self, rendered_values):
         """ Format and print the pre-rendered data to the output device. """
         for row in rendered_values:
-            print(*self.format_row(row), sep='', file=self.file)
+            for line in self.format_row(row):
+                print(*line, sep='', file=self.file)
 
     def print(self, data):
         if not self.headers_drawn:
             if not self.hide_header:
-                self.print_header()
+                if self.title:
+                    self.print_title(self.cell_format(self.title))
+                headers = [self.cell_format(x or '') for x in self.headers]
+                self.print_headers(headers)
             self.headers_drawn = True
         self.print_rendered(self.render_data(data))
+
+    def print_linebreak(self):
+        print(self.linebreak * self.width, file=self.file)
 
     def make_formatter(self, width, padding, alignment):
         """ Create formatter function that factors the width and alignment
         settings. """
-        overflow = self.get_overflower(width) if self.clip else lambda x: x
+        if self.overflow == 'clip':
+            overflow = lambda x: [x.clip(width, self.cliptext)]
+        elif self.overflow == 'wrap':
+            overflow = lambda x: x.wrap(width)
+        else:
+            overflow = lambda x: [x]
         align = self.get_aligner(alignment, width)
         pad = self.get_aligner('center', width + padding)
 
-        def fn(x, overflow=overflow, align=align, pad=pad):
-            return pad(align(overflow(x)))
+        def fn(value, overflow=overflow, align=align, pad=pad):
+            return [pad(align(x)) for x in overflow(value)]
         return fn
 
     def make_formatters(self):
@@ -589,8 +638,8 @@ class TableRenderer(object):
                 "chop_count": 0,
                 "total_mass": sum(a * b for a, b in counts.items())
             })
-        if self.clip:
-            self.adjust_clipping(max_width, colstats)
+        if self.overflow is not None:
+            self.adjust_widths(max_width, colstats)
         required = sum(x['offt'] for x in colstats)
         if required < max_width:
             # Fill remaining space proportionately.
@@ -604,12 +653,12 @@ class TableRenderer(object):
                     col['offt'] += adj
         return [(x['column'], x['offt']) for x in colstats]
 
-    def adjust_clipping(self, max_width, colstats):
-        """ Clip the columns based on the least negative affect it will have
-        on the viewing experience.  We take note of the total character mass
-        that will be clipped when each column should be narrowed.  The actual
-        score for clipping is based on percentage of total character mass,
-        which is the total number of characters in the column. """
+    def adjust_widths(self, max_width, colstats):
+        """ Adjust column widths based on the least negative affect it will
+        have on the viewing experience.  We take note of the total character
+        mass that will be clipped when each column should be narrowed.  The
+        actual score for clipping is based on percentage of total character
+        mass, which is the total number of characters in the column. """
         next_score = lambda x: (x['counts'][x['offt']] + x['chop_mass'] +
                                 x['chop_count']) / x['total_mass']
         cur_width = lambda: sum(x['offt'] for x in colstats)
@@ -627,27 +676,17 @@ class TableRenderer(object):
 
 
 class PlainTableRenderer(TableRenderer):
-    """ Render output without any special formatting. """
+    """ Render output without any vt100 codes. """
 
     name = 'plain'
-
-    def print_header(self):
-        headers = [rendering.VTML(x or '') for x in self.headers]
-        header = ''.join(map(str, self.format_row(headers)))
-        if self.title:
-            print(self.format_fullwidth(self.title), file=self.file)
-        print(header, file=self.file)
-        print(self.linebreak * len(header), file=self.file)
-
-    def print_footer(self, content):
-        row = self.format_fullwidth(content)
-        if not self.footers_drawn:
-            self.footers_drawn = True
-            print(self.linebreak * len(row), file=self.file)
-        print(row, file=self.file)
+    overflow_default = None
 
     def cell_format(self, value):
-        return rendering.vtmlrender(value, plain=True)
+        return vtmlrender(value, plain=True)
+
+    def print_headers(self, headers):
+        super().print_headers(headers)
+        self.print_linebreak()
 
 Table.register_renderer(PlainTableRenderer)
 
@@ -657,30 +696,12 @@ class TerminalTableRenderer(TableRenderer):
     the most human friendly output when on a terminal device. """
 
     name = 'terminal'
-    clip_default = True
-    title_format = '\n<b>%s</b>\n'
-    header_format = '<reverse>%s</reverse>'
-    footer_format = '<dim>%s</dim>'
-
-    def print_header(self):
-        headers = [rendering.VTML(x or '') for x in self.headers]
-        header = ''.join(map(str, self.format_row(headers)))
-        if self.title:
-            title = self.format_fullwidth(self.title)
-            rendering.vtmlprint(self.title_format % title, file=self.file)
-        rendering.vtmlprint(self.header_format % header, file=self.file)
-
-    def print_footer(self, content):
-        row = self.format_fullwidth(content)
-        if not self.footers_drawn:
-            self.footers_drawn = True
-            print(self.linebreak * len(row), file=self.file)
-        rendering.vtmlprint(self.footer_format % row, file=self.file)
+    overflow_default = 'wrap'
 
 Table.register_renderer(TerminalTableRenderer)
 
 
-class JSONTableRenderer(TableRenderer):
+class JSONTableRenderer(PlainTableRenderer):
     """ Generate JSON output of the table. """
 
     name = 'json'
@@ -713,16 +734,18 @@ class JSONTableRenderer(TableRenderer):
         self.seen_keys.add(key)
         return key
 
-    def cell_format(self, value):
-        return rendering.vtmlrender(value).text()
+    def print_title(self, title):
+        self.buf['title'] = title.text()
 
-    def print_header(self):
-        self.buf['title'] = self.title
-        self.keys[:] = map(self.make_key, self.headers)
+    def print_headers(self, headers):
+        self.keys[:] = map(self.make_key, [x.text() for x in headers])
+
+    def print_footer(self, content):
+        self.buf['footers'].append(self.cell_format(content).text())
 
     def print_rendered(self, rendered_values):
-        self.buf['rows'].extend(dict(zip(self.keys, x))
-                                for x in rendered_values)
+        self.buf['rows'].extend(dict(zip(self.keys, [x.text() for x in row]))
+                                for row in rendered_values)
 
     def close(self, exception=None):
         if exception and any(exception):
@@ -732,7 +755,7 @@ class JSONTableRenderer(TableRenderer):
 Table.register_renderer(JSONTableRenderer)
 
 
-class CSVTableRenderer(TableRenderer):
+class CSVTableRenderer(PlainTableRenderer):
     """ Generate CSV (comma delimited) output of the table. """
 
     name = 'csv'
@@ -741,18 +764,19 @@ class CSVTableRenderer(TableRenderer):
         super().__init__(*args, **kwargs)
         self.writer = csv.writer(self.file)
 
-    def cell_format(self, value):
-        return rendering.vtmlrender(value).text()
+    def print_title(self, title):
+        """ CSV does not support a title. """
+        pass
+
+    def print_headers(self, headers):
+        self.writer.writerow(headers)
+
+    def print_rendered(self, rendered_values):
+        self.writer.writerows(rendered_values)
 
     def print_footer(self, content):
         """ CSV does not support footers. """
         pass
-
-    def print_header(self):
-        self.writer.writerow(self.headers)
-
-    def print_rendered(self, rendered_values):
-        self.writer.writerows(rendered_values)
 
 Table.register_renderer(CSVTableRenderer)
 
@@ -772,20 +796,23 @@ class MarkdownTableRenderer(PlainTableRenderer):
     def mdprint(self, *columns):
         print('|%s|' % '|'.join(map(str, columns)), file=self.file)
 
-    def print_header(self):
-        if self.title:
-            print("**%s**" % self.title, file=self.file)
-        headers = [rendering.VTML(x or '') for x in self.headers]
-        self.mdprint(*map(str, self.format_row(headers)))
+    def print_title(self, title):
+        print("\n**%s**\n" % self.format_fullwidth(title).text(),
+              file=self.file)
+
+    def print_headers(self, headers):
+        for line in self.format_row(headers):
+            self.mdprint(*map(str, line))
         self.mdprint(*("-" * (width + colspec['padding'])
                      for width, colspec in zip(self.widths, self.colspec)))
 
-    def print_footer(self, content):
-        print("_%s_" % content, file=self.file)
-
     def print_rendered(self, rendered_values):
         for row in rendered_values:
-            self.mdprint(*self.format_row(row))
+            for line in self.format_row(row):
+                self.mdprint(*line)
+
+    def print_footer(self, content):
+        print("\n_%s_" % content, file=self.file)
 
 Table.register_renderer(MarkdownTableRenderer)
 

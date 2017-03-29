@@ -4,9 +4,9 @@ import unittest
 from shellish import rendering as R
 
 
-class VTMLStringTests(unittest.TestCase):
+class VTMLBufferTests(unittest.TestCase):
 
-    def test_vtstr_overclip_plain(self):
+    def test_overclip_plain(self):
         startval = 'A' * 10
         s = R.vtmlrender(startval)
         self.assertEqual(s.clip(11), startval)
@@ -14,13 +14,13 @@ class VTMLStringTests(unittest.TestCase):
         self.assertEqual(s.clip(20), startval)
         self.assertEqual(s.clip(20).text(), startval)
 
-    def test_vtstr_noclip_plain(self):
+    def test_noclip_plain(self):
         startval = 'A' * 10
         s = R.vtmlrender(startval)
         self.assertEqual(s.clip(10), startval)
         self.assertEqual(s.clip(10).text(), startval)
 
-    def test_vtstr_underclip_plain(self):
+    def test_underclip_plain(self):
         startval = 'A' * 10
         s = R.vtmlrender(startval)
         self.assertEqual(s.clip(9), startval[:9])
@@ -33,7 +33,7 @@ class VTMLStringTests(unittest.TestCase):
         self.assertEqual(s.clip(0).text(), '')
         self.assertRaises(ValueError, s.clip, -10)
 
-    def test_vtstr_overclip_vtml(self):
+    def test_overclip_vtml(self):
         startval = 'A' * 10
         s = R.vtmlrender('<b>%s</b>' % startval)
         self.assertEqual(s.clip(11).text(), startval)
@@ -41,13 +41,13 @@ class VTMLStringTests(unittest.TestCase):
         self.assertEqual(s.clip(11), s)
         self.assertEqual(s.clip(20), s)
 
-    def test_vtstr_noclip_vtml(self):
+    def test_noclip_vtml(self):
         startval = 'A' * 10
         s = R.vtmlrender('<b>%s</b>' % startval)
         self.assertEqual(s.clip(10).text(), startval)
         self.assertEqual(s.clip(10), s)
 
-    def test_vtstr_underclip_vtml(self):
+    def test_underclip_vtml(self):
         startval = 'A' * 10
         s = R.vtmlrender('<b>%s</b>' % startval)
         self.assertEqual(s.clip(9).text(), startval[:9])
@@ -60,11 +60,11 @@ class VTMLStringTests(unittest.TestCase):
         self.assertEqual(s.clip(0), '')
         self.assertRaises(ValueError, s.clip, -10)
 
-    def test_vtstr_underclip_vtml_reset(self):
+    def test_underclip_vtml_reset(self):
         s = R.vtmlrender('<b>%s</b>' % 'AAAA')
         self.assertTrue(str(s.clip(2)).endswith('\033[0m'))
 
-    def test_vtstr_overclip_with_cliptextt(self):
+    def test_overclip_with_cliptextt(self):
         startval = 'A' * 10
         s = R.vtmlrender(startval)
         self.assertEqual(s.clip(12, '.'), startval)
@@ -77,7 +77,7 @@ class VTMLStringTests(unittest.TestCase):
         self.assertEqual(s.clip(11, '...'), startval)
         self.assertEqual(s.clip(10, '...'), startval)
 
-    def test_vtstr_underclip_with_cliptextt(self):
+    def test_underclip_with_cliptextt(self):
         startval = 'A' * 10
         s = R.vtmlrender(startval)
         self.assertEqual(s.clip(9, '.'), startval[:8] + '.')
@@ -90,6 +90,70 @@ class VTMLStringTests(unittest.TestCase):
         self.assertEqual(s.clip(8, '...'), startval[:5] + '...')
         self.assertEqual(s.clip(7, '...'), startval[:4] + '...')
         self.assertEqual(s.clip(6, '...'), startval[:3] + '...')
+
+    def test_wrap_empty(self):
+        buf = R.vtmlrender('')
+        self.assertListEqual(buf.wrap(10), [''])
+ 
+    def test_wrap_identity(self):
+        buf = R.vtmlrender('abcdefgh')
+        self.assertIsInstance(buf.wrap(10), list)
+        self.assertIsInstance(buf.wrap(8), list)
+        self.assertIsInstance(buf.wrap(1), list)
+        self.assertRaises(ValueError, buf.wrap, -1)
+        self.assertRaises(ValueError, buf.wrap, 0)
+        self.assertRaises(ValueError, buf.wrap, -2)
+        self.assertRaises(ValueError, buf.wrap, -8)
+        self.assertRaises(ValueError, buf.wrap, -10)
+
+    def test_wrap_boundries_packed_stronly(self):
+        buf = R.vtmlrender('abcdefgh')
+        self.assertListEqual(buf.wrap(10), ['abcdefgh'])
+        self.assertListEqual(buf.wrap(8), ['abcdefgh'])
+        self.assertListEqual(buf.wrap(7), ['abcdefg', 'h'])
+        self.assertListEqual(buf.wrap(2), ['ab', 'cd', 'ef', 'gh'])
+        self.assertListEqual(buf.wrap(1), list('abcdefgh'))
+
+    def test_wrap_boundries_hypens_stronly(self):
+        buf = R.vtmlrender('abcd-efgh')
+        self.assertListEqual(buf.wrap(10), ['abcd-efgh'])
+        self.assertListEqual(buf.wrap(8), ['abcd-', 'efgh'])
+
+    def test_wrap_whitespace_stronly(self):
+        buf = R.vtmlrender('abcd efgh')
+        self.assertListEqual(buf.wrap(10), ['abcd efgh'])
+        self.assertListEqual(buf.wrap(8), ['abcd', 'efgh'])
+        self.assertListEqual(buf.wrap(7), ['abcd', 'efgh'])
+        self.assertListEqual(buf.wrap(2), ['ab', 'cd', 'ef', 'gh'])
+        self.assertListEqual(buf.wrap(1), list('abcdefgh'))
+
+    def test_wrap_multi_whitespace_stronly(self):
+        buf = R.vtmlrender(' A BB  CCC  DDDD EEEEE ')
+        self.assertListEqual(buf.wrap(10), ['A BB  CCC', 'DDDD EEEEE'])
+        self.assertListEqual(buf.wrap(8), ['A BB', 'CCC', 'DDDD', 'EEEEE'])
+        self.assertListEqual(buf.wrap(7), ['A BB', 'CCC', 'DDDD', 'EEEEE'])
+        self.assertListEqual(buf.wrap(2),
+            ['A', 'BB', 'CC', 'C', 'DD', 'DD', 'EE', 'EE', 'E'])
+        self.assertListEqual(buf.wrap(1),
+            ['A', 'B', 'B', 'C', 'C', 'C', 'D', 'D',
+             'D', 'D', 'E', 'E', 'E', 'E', 'E'])
+
+    def test_wrap_overflow_whitespace_stronly(self):
+        buf = R.vtmlrender('        A BB  ')
+        self.assertListEqual(buf.wrap(20), ['A BB'])
+        self.assertListEqual(buf.wrap(5), ['A BB'])
+        self.assertListEqual(buf.wrap(3), ['A', 'BB'])
+        self.assertListEqual(buf.wrap(2), ['A', 'BB'])
+        buf = R.vtmlrender('        A BB         ')
+        self.assertListEqual(buf.wrap(20), ['A BB'])
+        self.assertListEqual(buf.wrap(5), ['A BB'])
+        self.assertListEqual(buf.wrap(3), ['A', 'BB'])
+        self.assertListEqual(buf.wrap(2), ['A', 'BB'])
+        buf = R.vtmlrender('        A             BB         ')
+        self.assertListEqual(buf.wrap(20), ['A             BB'])
+        self.assertListEqual(buf.wrap(5), ['A', 'BB'])
+        self.assertListEqual(buf.wrap(3), ['A', 'BB'])
+        self.assertListEqual(buf.wrap(2), ['A', 'BB'])
 
     def test_bad_data(self):
         bad = [
