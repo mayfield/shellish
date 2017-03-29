@@ -6,6 +6,16 @@
 - Nested pager usage would cause various problems
 - Defer SIGPIPE signal handling when paging.
 
+### Changed
+- `Table(clip=True` is now controlled by the **overflow** option, a la.
+  `Table(overflow='clip')`.
+- Refactored VTML -> VTMLBuffer.  Bigger API, more features..
+
+### Added
+- Support for embedding VTML `'{:vtml}'.format(vtmlbuffer_object)`.  Produces
+  a VTML document that can be consumed by `vtmlprint`.
+- Table wrapped column support via `Table(overflow='wrap')`.
+  
 
 ## [4.3] - 2017-02-25
 ### Fixed
