@@ -15,6 +15,10 @@
 - Support for embedding VTML `'{:vtml}'.format(vtmlbuffer_object)`.  Produces
   a VTML document that can be consumed by `vtmlprint`.
 - Table wrapped column support via `Table(overflow='wrap')`.
+- VTMLBuffer inplace-add and right-hand add (to strings).  Prior to this
+  in-place add (foo += bar) would produce a new object;  Now it extends
+  the left-operand.  The right-hand add adds support for adding VTMLBuffer
+  to a `str` object, eg. `a = 'foo' + VTMLBuffer('bar')`
   
 
 ## [4.3] - 2017-02-25
