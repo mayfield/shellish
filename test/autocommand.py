@@ -67,6 +67,7 @@ class PositionalTests(unittest.TestCase):
             self.assertEqual(len(args), 0)
         f(argv='')
 
+
 class KeywordTests(unittest.TestCase):
 
     def test_one_keyword(self):
@@ -185,13 +186,13 @@ class TypeTests(unittest.TestCase):
 
     def test_annotation_str(self):
         @autocommand
-        def f(one:str):
+        def f(one: str):
             self.assertIsInstance(one, str)
         f(argv='asdf')
 
     def test_pos_annotation_bool(self):
         @autocommand
-        def f(one:bool):
+        def f(one: bool):
             self.assertIsInstance(one, bool)
             return one
         for x in ('False', 'no', 'disable', '0', 'null', 'None'):
@@ -210,6 +211,7 @@ class TypeTests(unittest.TestCase):
             return toggle
         self.assertFalse(f(argv=''))
         self.assertTrue(f(argv='--toggle'))
+
         @autocommand
         def f(toggle=True):
             self.assertIsInstance(toggle, bool)
@@ -219,7 +221,7 @@ class TypeTests(unittest.TestCase):
 
     def test_annotation_int(self):
         @autocommand
-        def f(one:int):
+        def f(one: int):
             self.assertIsInstance(one, int)
             return one
         for x in [0, 1, 2**1024, -1, -2]:
@@ -230,7 +232,7 @@ class TypeTests(unittest.TestCase):
 
     def test_annotation_float(self):
         @autocommand
-        def f(one:float):
+        def f(one: float):
             self.assertIsInstance(one, float)
             return one
         for x in [0, 1, 1.1]:

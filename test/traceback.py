@@ -60,8 +60,8 @@ class TracebackSanity(unittest.TestCase):
             try:
                 raise TypeError('bar')
             except TypeError as inner:
-                self.assertTracebackFormat(list(shellish.format_exception(inner)),
-                                           'TypeError')
+                self.assertTracebackFormat(
+                    list(shellish.format_exception(inner)), 'TypeError')
 
     def test_print(self):
         buf = io.StringIO()

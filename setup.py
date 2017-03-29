@@ -4,6 +4,7 @@ from setuptools import setup, find_packages
 
 README = 'README.md'
 
+
 def long_desc():
     try:
         import pypandoc
@@ -25,7 +26,7 @@ setup(
     packages=find_packages(),
     install_requires=['markdown2'],
     test_suite='test',
-    entry_points = {
+    entry_points={
         'console_scripts': [
             'csvpretty=shellish.tools.csvpretty:csvpretty',
             'mdcat=shellish.tools.mdcat:mdcat'
@@ -33,8 +34,8 @@ setup(
     },
     classifiers=[
         'Development Status :: 4 - Beta',
-        #'Development Status :: 5 - Production/Stable',
-        #'Development Status :: 6 - Mature',
+        # 'Development Status :: 5 - Production/Stable',
+        # 'Development Status :: 6 - Mature',
         'Intended Audience :: Developers',
         'License :: OSI Approved :: MIT License',
         'Operating System :: OS Independent',

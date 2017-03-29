@@ -38,7 +38,7 @@ class CommandSanity(unittest.TestCase):
     def test_title_desc_by_subclass_docstring_2line_padded(self):
         class Foo(shellish.Command):
             """ foo 
-            bar """
+            bar """  # noqa
         f = Foo(name='foo')
         self.assertEqual(f.title, 'foo')
         self.assertEqual(f.desc, 'bar')
@@ -55,7 +55,7 @@ class CommandSanity(unittest.TestCase):
         class Foo(shellish.Command):
             """ foo 
 
-            bar """
+            bar """  # noqa
         f = Foo(name='foo')
         self.assertEqual(f.title, 'foo')
         self.assertEqual(f.desc, 'bar')

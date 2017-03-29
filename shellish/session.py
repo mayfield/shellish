@@ -197,7 +197,7 @@ class Session(eventing.Eventer):
                 cfunc = self.complete_names
             if self.pad_completion:
                 pad = lambda x: x + ' ' if not x.endswith(' ') or \
-                                           x.endswith(r'\ ') else x
+                    x.endswith(r'\ ') else x
             else:
                 pad = lambda x: x
             choices = self.complete_wrap(cfunc, text, line, begin, end)

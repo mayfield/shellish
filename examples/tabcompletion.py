@@ -5,6 +5,7 @@ Demo how to add your auto tab completers.
 import random
 import shellish
 
+
 def thing_completer(prefix, args):
     letters = 'qwertyuiopasdfghjklzxcvbnm'
     word = lambda: ''.join(random.sample(letters, random.randint(1, 16)))

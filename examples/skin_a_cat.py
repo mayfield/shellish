@@ -4,6 +4,7 @@ Demo of different ways to skin a cat.
 
 import shellish
 
+
 ##############
 # Decorators #
 ##############
@@ -14,7 +15,7 @@ def cat1():
 
 
 @shellish.autocommand
-def sub1(optional:int=1):
+def sub1(optional: int=1):
     print("ran subcommand1", optional)
 
 cat1.add_subcommand(sub1)

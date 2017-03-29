@@ -78,7 +78,7 @@ class TTLMapping(collections.abc.MutableMapping):
         """ Garbage collect overflow and/or aged entries. """
         manifest = []
         overlimit = len(self.data) - self.maxsize \
-                    if self.maxsize is not None else 0
+            if self.maxsize is not None else 0
         now = self.ttl is not None and self.timer()
         for key, entry in self.data.items():
             if overlimit > 0 or (now and self.is_expired(entry, time=now)):

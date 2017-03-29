@@ -80,8 +80,8 @@ def treeprint(data, render_only=False, file=None, **options):
     def getiter(obj):
         if isinstance(obj, collections.abc.Mapping):
             return obj.items()
-        elif isinstance(obj, collections.abc.Iterable) and \
-             not isinstance(obj, str):
+        elif (isinstance(obj, collections.abc.Iterable) and
+              not isinstance(obj, str)):
             return enumerate(obj)
 
     def cycle_check(item, seen=set()):

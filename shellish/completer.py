@@ -138,7 +138,7 @@ class ActionCompleter(object):
             except PermissionError:
                 pass
         prevent_pad = session.pad_completion and len(choices) == 1 and \
-                      os.path.isdir(choices[0])
+            os.path.isdir(choices[0])
         names = [os.path.join(dirname, x) for x in choices]
         if prevent_pad:
             names.append(names[0] + '/')

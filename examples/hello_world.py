@@ -1,5 +1,6 @@
 import shellish
 
+
 class Hello(shellish.Command):
     """ I am a docstring used to document the --help output! """
 

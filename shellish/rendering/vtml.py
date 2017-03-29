@@ -310,7 +310,7 @@ class VTMLBuffer(object):
         if isinstance(other, str):
             return other + str(self)
         elif isinstance(other, VTMLBuffer):
-            return other + self ## hit left add
+            return other + self
         else:
             raise TypeError("Invalid concatenation type: %s" % type(other))
 

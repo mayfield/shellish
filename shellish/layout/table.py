@@ -500,7 +500,7 @@ class TableRenderer(object):
             setattr(self, x, getattr(table, x))
         if self.width is None:
             self.width = shutil.get_terminal_size()[0] \
-                         if self.file is sys.stdout else 80
+                if self.file is sys.stdout else 80
         if self.overflow is None:
             self.overflow = self.overflow_default
 

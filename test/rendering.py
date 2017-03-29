@@ -94,7 +94,7 @@ class VTMLBufferTests(unittest.TestCase):
     def test_wrap_empty(self):
         buf = R.vtmlrender('')
         self.assertListEqual(buf.wrap(10), [''])
- 
+
     def test_wrap_identity(self):
         buf = R.vtmlrender('abcdefgh')
         self.assertIsInstance(buf.wrap(10), list)
@@ -132,11 +132,11 @@ class VTMLBufferTests(unittest.TestCase):
         self.assertListEqual(buf.wrap(10), ['A BB  CCC', 'DDDD EEEEE'])
         self.assertListEqual(buf.wrap(8), ['A BB', 'CCC', 'DDDD', 'EEEEE'])
         self.assertListEqual(buf.wrap(7), ['A BB', 'CCC', 'DDDD', 'EEEEE'])
-        self.assertListEqual(buf.wrap(2),
-            ['A', 'BB', 'CC', 'C', 'DD', 'DD', 'EE', 'EE', 'E'])
-        self.assertListEqual(buf.wrap(1),
-            ['A', 'B', 'B', 'C', 'C', 'C', 'D', 'D',
-             'D', 'D', 'E', 'E', 'E', 'E', 'E'])
+        self.assertListEqual(buf.wrap(2), [
+            'A', 'BB', 'CC', 'C', 'DD', 'DD', 'EE', 'EE', 'E'])
+        self.assertListEqual(buf.wrap(1), [
+            'A', 'B', 'B', 'C', 'C', 'C', 'D', 'D', 'D', 'D', 'E', 'E', 'E',
+            'E', 'E'])
 
     def test_wrap_overflow_whitespace_stronly(self):
         buf = R.vtmlrender('        A BB  ')
@@ -248,7 +248,7 @@ class VTMLBufferTests(unittest.TestCase):
         for starts in perms:
             suffix = '<b>valid</b>'
             valid = str(R.vtmlrender(suffix, strict=True))
-            self.assertIn('\033', valid, 'sanity test to validate next portion')
+            self.assertIn('\033', valid, 'test to validate next portion')
             ends = next(perms)  # makes for bad closes
             buf = ["<%s>asdf</%s>" % (x, y) for x, y in zip(starts, ends)]
             line = ''.join(buf)

@@ -31,12 +31,14 @@ class ArgumentCompletions(unittest.TestCase):
 
     def test_empty_shows_single_opt_arg(self):
         @shellish.autocommand
-        def cmd(foo=None): pass
+        def cmd(foo=None):
+            pass
         self.assertEqual(self.complete(cmd, ''), {'--foo'})
 
     def test_valid_shows_single_opt_arg(self):
         @shellish.autocommand
-        def cmd(foo=None): pass
+        def cmd(foo=None):
+            pass
         self.assertEqual(self.complete(cmd, '-'), {'--foo'})
         self.assertEqual(self.complete(cmd, '--'), {'--foo'})
         self.assertEqual(self.complete(cmd, '--f'), {'--foo'})
@@ -45,7 +47,8 @@ class ArgumentCompletions(unittest.TestCase):
 
     def test_invalid_hides_single_opt_arg(self):
         @shellish.autocommand
-        def cmd(foo=None): pass
+        def cmd(foo=None):
+            pass
         self.assertEqual(self.complete(cmd, '--nope'), set())
         self.assertEqual(self.complete(cmd, '-nope'), set())
         self.assertEqual(self.complete(cmd, 'nope'), set())
@@ -53,7 +56,8 @@ class ArgumentCompletions(unittest.TestCase):
 
     def test_single_value_argument_consumed(self):
         @shellish.autocommand
-        def cmd(foo=None): pass
+        def cmd(foo=None):
+            pass
         self.assertEqual(self.complete(cmd, '--foo v '), set())
 
     def test_one_bool_argument_consumed(self):
@@ -75,14 +79,16 @@ class ArgumentCompletions(unittest.TestCase):
 
     def test_one_single_value_argument_consumed(self):
         @shellish.autocommand
-        def cmd(foo=None): pass
+        def cmd(foo=None):
+            pass
         self.assertEqual(self.complete(cmd, '--fo'), {'--foo'})
         self.assertEqual(self.complete(cmd, '--foo'), {'--foo'})
         self.assertEqual(self.complete(cmd, '--foo value '), set())
 
     def test_many_single_value_arguments_consumed(self):
         @shellish.autocommand
-        def cmd(foo=None, bar=None): pass
+        def cmd(foo=None, bar=None):
+            pass
         self.assertEqual(self.complete(cmd, '--fo'), {'--foo'})
         self.assertEqual(self.complete(cmd, '--foo'), {'--foo'})
         self.assertEqual(self.complete(cmd, '--foo value '), {'--bar'})
@@ -108,6 +114,7 @@ class ArgumentCompletions(unittest.TestCase):
 
     def test_completer_custom_parser(self):
         completer = lambda *args, **kwargs: None
+
         class T(shellish.Command):
             def setup_args(self, parser):
                 p = parser.add_mutually_exclusive_group()

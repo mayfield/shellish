@@ -9,21 +9,24 @@ import unittest
 class TestNesting(unittest.TestCase):
 
     def test_nest1_by_class(self):
+
         class A(shellish.Command):
             name = 'a'
+
             def run(self, args):
                 return 'A'
 
         class B(shellish.Command):
             name = 'b'
+
             def run(self, args):
                 return 'B'
 
         class B2(shellish.Command):
             name = 'b2'
+
             def run(self, args):
                 return 'B2'
-
         a = A()
         a.add_subcommand(B)
         a.add_subcommand(B2())
@@ -32,16 +35,18 @@ class TestNesting(unittest.TestCase):
         self.assertEqual(a(argv='b2'), 'B2')
 
     def test_default_subcommand(self):
+
         class A(shellish.Command):
             name = 'a'
+
             def run(self, args):
                 return 'A'
 
         class B(shellish.Command):
             name = 'b'
+
             def run(self, args):
                 return 'B'
-
         a = A()
         a.add_subcommand(B, default=True)
         self.assertEqual(a(argv=''), 'B')
@@ -61,6 +66,7 @@ class CommandCompose(unittest.TestCase):
 
     def test_allrunners(self):
         refcnt = 0
+
         def runner(args, **ign):
             nonlocal refcnt
             refcnt += 1
@@ -98,11 +104,14 @@ class CommandFileArguments(unittest.TestCase):
 
     def test_file_argument_defaults_stdio(self):
         flushed = False
+
         class Stdin(object):
+
             def flush(self):
                 nonlocal flushed
                 flushed = True
         stdin_setinel = Stdin()
+
         def run(args):
             with args.foo as f:
                 self.assertIs(f, stdin_setinel)

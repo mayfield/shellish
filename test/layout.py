@@ -36,7 +36,7 @@ class TabularUnflex(unittest.TestCase):
         self.assertEqual(widths, [10, 40, 50])
 
     def test_uneven_pct(self):
-        widths = calc_table(1/3, 1/3, 1/3)
+        widths = calc_table(1 / 3, 1 / 3, 1 / 3)
         self.assertEqual(widths, [33, 33, 33])
 
     def test_only_unspec_even(self):
@@ -48,7 +48,7 @@ class TabularUnflex(unittest.TestCase):
         self.assertEqual(widths, [33, 34, 33])
 
     def test_carry_over(self):
-        widths = calc_table(1/3, 1/3, 1/3)
+        widths = calc_table(1 / 3, 1 / 3, 1 / 3)
         self.assertEqual(widths, [33, 33, 33])
 
     def test_only_unspec_one(self):
@@ -64,7 +64,7 @@ class TabularUnflex(unittest.TestCase):
         self.assertEqual(widths, [25, 25, 25, 25])
 
     def test_mixed_odd(self):
-        widths = calc_table(19, 2/3, None, None, None, None, width=147)
+        widths = calc_table(19, 2 / 3, None, None, None, None, width=147)
         self.assertEqual(widths, [19, 98, 7, 8, 7, 8])
 
 
@@ -139,12 +139,14 @@ class TableDataSupport(unittest.TestCase):
 
     def test_columns_from_only_generator_data(self):
         output, t = self.table()
+
         def gen():
             yield ['one', 'two', 'three']
         t.print(gen())
         self.assertEqual(len(output()), 1)
 
         output, t = self.table()
+
         def gen():
             yield ['one', 'two', 'three']
             yield ['one', 'two', 'three']
@@ -262,6 +264,7 @@ class TableDataSupport(unittest.TestCase):
         for seed_max in range(12):
             output, t = self.table([None], width=1, column_padding=0)
             t.max_seed = seed_max
+
             def stream():
                 for i in range(10):
                     yield [i]
@@ -291,6 +294,7 @@ class TableDataSupport(unittest.TestCase):
             output, t = self.table([None], flex=False, width=1,
                                    column_padding=0)
             t.max_seed = seed_max
+
             def stream():
                 for i in range(10):
                     yield [i]
@@ -322,7 +326,7 @@ class TableUsagePatterns(unittest.TestCase):
 class TableCalcs(unittest.TestCase):
 
     def test_unflex_spec_underflow(self):
-        widths = calc_table(*[1/26] * 26)
+        widths = calc_table(*[1 / 26] * 26)
         self.assertLess(statistics.variance(widths), 1)
         self.assertEqual(sum(widths), 78)  # uses floor() so it's lossy
 
@@ -354,6 +358,7 @@ class TableClosingContext(unittest.TestCase):
 
     def test_Table_context_noaction(self):
         closed = False
+
         class TestTable(L.Table):
             def close(self, **kwargs):
                 super().close(*kwargs)
@@ -364,7 +369,9 @@ class TableClosingContext(unittest.TestCase):
         self.assertTrue(closed)
 
     def test_Table_context_exc(self):
-        class TestExc(Exception): pass
+        class TestExc(Exception):
+            pass
+
         class TestTable(L.Table):
             def close(this, exception=None):
                 self.assertIs(exception[0], TestExc)
@@ -436,7 +443,7 @@ class TreeData(unittest.TestCase):
         L.treeprint({"a": ["1", 2]})
         L.treeprint({"a": ["1", "a"]})
         L.treeprint({"a": {}})
-        L.treeprint({"a": {1:1}})
+        L.treeprint({"a": {1: 1}})
 
     def test_treeprint_cyclic(self):
         looper = {}

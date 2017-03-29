@@ -30,5 +30,5 @@ def ignore_broken_pipe():
 atexit.register(ignore_broken_pipe)
 
 
-from .command import *
-from .autocommand import *
+from .command import *  # noqa
+from .autocommand import *  # noqa
