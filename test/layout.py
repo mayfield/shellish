@@ -252,10 +252,11 @@ class TableDataSupport(unittest.TestCase):
         self.assertIn('foo', out()[-1])
 
     def test_footers_alt_renderers(self):
-        for renderer in ('json', 'csv', 'plain', 'md'):
-            with L.Table(renderer=renderer, rows=[None, None]) as t:
-                t.print(['AB'])
-                t.print_footer('foobar')
+        for renderer in 'json', 'csv', 'plain', 'md':
+            output, table = self.table(renderer=renderer)
+            with table:
+                table.print(['AB'])
+                table.print_footer('foobar')
 
     def test_gen_seed_over_under(self):
         for seed_max in range(12):
@@ -308,7 +309,8 @@ class TableDataSupport(unittest.TestCase):
 class TableUsagePatterns(unittest.TestCase):
 
     def table(self, *args, column_padding=0, **kwargs):
-        return fileredir(L.Table, *args, column_padding=column_padding, **kwargs)
+        return fileredir(L.Table, *args, column_padding=column_padding,
+                         **kwargs)
 
     def test_headers_once(self):
         output, t = self.table(headers=['foo'], width=3)

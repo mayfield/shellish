@@ -180,28 +180,45 @@ class VTMLBufferTests(unittest.TestCase):
     def test_add_same_type(self):
         a = R.vtmlrender('aaaa')
         b = R.vtmlrender('BBBB')
-        ab = R.vtmlrender('aaaaBBBB')
-        self.assertEqual(a+b, ab)
-        self.assertEqual(str(a+b), str(ab))
-
-    def test_iadd_same_type(self):
-        a1 = R.vtmlrender('aaaa')
-        a1 += R.vtmlrender('BBBB')
-        a2 = R.vtmlrender('aaaaBBBB')
-        self.assertEqual(a1, a2)
+        c = a + b
+        self.assertIsNot(c, a)
+        self.assertIsNot(c, b)
+        self.assertEqual(c, R.vtmlrender('aaaaBBBB'))
+        self.assertEqual(str(c), 'aaaaBBBB')
 
     def test_add_str_type(self):
         a = R.vtmlrender('aaaa')
         b = 'BBBB'
-        ab = R.vtmlrender('aaaaBBBB')
-        self.assertEqual(a+b, ab)
-        self.assertEqual(str(a+b), str(ab))
+        c = a + b
+        self.assertIsNot(c, a)
+        self.assertEqual(c, R.vtmlrender('aaaaBBBB'))
+        self.assertEqual(str(c), 'aaaaBBBB')
+
+    def test_iadd_same_type(self):
+        a1 = a1_save = R.vtmlrender('aaaa')
+        a1 += R.vtmlrender('BBBB')
+        self.assertIs(a1, a1_save)
+        self.assertEqual(a1, R.vtmlrender('aaaaBBBB'))
+        self.assertEqual(str(a1), 'aaaaBBBB')
 
     def test_iadd_str_type(self):
-        a1 = R.vtmlrender('aaaa')
+        a1 = a1_save = R.vtmlrender('aaaa')
         a1 += 'BBBB'
-        a2 = R.vtmlrender('aaaaBBBB')
-        self.assertEqual(a1, a2)
+        self.assertIs(a1, a1_save)
+        self.assertEqual(a1, R.vtmlrender('aaaaBBBB'))
+        self.assertEqual(str(a1), 'aaaaBBBB')
+
+    def test_right_add_str_type(self):
+        a = R.vtmlrender('aaaa')
+        b = 'BBBB' + a
+        self.assertEqual(b, 'BBBBaaaa')
+        self.assertIsInstance(b, str)
+
+    def test_add_ident(self):
+        a1 = R.vtmlrender('aaaa')
+        a2 = a1 + 'BBBB'
+        self.assertIsNot(a1, a2)
+        self.assertNotEqual(a1, a2)
 
     def test_iadd_unsupport_type(self):
         a1 = R.vtmlrender('foo')

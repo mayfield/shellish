@@ -288,16 +288,31 @@ class VTMLBuffer(object):
         else:
             return str(self)
 
-    def __add__(self, item):
-        if isinstance(item, VTMLBuffer):
-            other = item
-        elif isinstance(item, str):
-            other = self.new(item)
-        else:
-            raise TypeError("Invalid concatenation type: %s" % type(item))
+    def __add__(self, other):
+        if isinstance(other, str):
+            other = self.new(other)
+        elif not isinstance(other, VTMLBuffer):
+            raise TypeError("Invalid concatenation type: %s" % type(other))
         new = self.copy()
         new.extend(other)
         return new
+
+    def __iadd__(self, other):
+        if isinstance(other, str):
+            self.append_str(other)
+        elif isinstance(other, VTMLBuffer):
+            self.extend(other)
+        else:
+            raise TypeError("Invalid concatenation type: %s" % type(other))
+        return self
+
+    def __radd__(self, other):
+        if isinstance(other, str):
+            return other + str(self)
+        elif isinstance(other, VTMLBuffer):
+            return other + self ## hit left add
+        else:
+            raise TypeError("Invalid concatenation type: %s" % type(other))
 
     def __getitem__(self, key):
         """ Support for slicing and indexing.  Results are always a new
@@ -424,19 +439,22 @@ class VTMLBuffer(object):
         new.extend(self)
         return new
 
-    def center(self, width, fillchar=' '):
+    def center(self, width, fillchar=' ', rstrip=False):
         """ Center strings so uneven padding always favors trailing pad.  When
         centering clumps of text this produces better results than str.center
         which alternates which side uneven padding occurs on. """
-        new = self.new()
         if width > len(self):
             padlen = width - len(self)
             leftlen = padlen // 2
             rightlen = padlen - leftlen
+            new = self.new()
             new.append_str(fillchar * leftlen)
             new.extend(self)
-            new.append_str(fillchar * rightlen)
-        return new
+            if not rstrip:
+                new.append_str(fillchar * rightlen)
+            return new
+        else:
+            return self.copy()
 
 _vtmlparser = VTMLParser()
 

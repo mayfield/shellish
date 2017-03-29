@@ -14,7 +14,7 @@ import shutil
 import sys
 import time
 import warnings
-from ..rendering import beststr, vtmlprint, vtmlrender, VTMLBuffer
+from ..rendering import beststr, vtmlrender, VTMLBuffer
 
 
 class RowsNotFound(ValueError):

@@ -72,16 +72,16 @@ def pager_redirect(desc, *, pagercmd=None, istty=None, file=None,
             p.stdin.isatty = lambda: istty
         stdout_save = sys.stdout
         sys.stdout = p.stdin
-        sigpipe_save = signal.getsignal(signal.SIGPIPE)
-        signal.signal(signal.SIGPIPE, signal.SIG_DFL)
         _pager_active = True
         try:
             yield
         finally:
             _pager_active = False
             sys.stdout = stdout_save
-            signal.signal(signal.SIGPIPE, sigpipe_save)
-            p.stdin.close()
+            try:
+                p.stdin.close()
+            except BrokenPipeError:
+                pass
             while p.poll() is None:
                 try:
                     p.wait()

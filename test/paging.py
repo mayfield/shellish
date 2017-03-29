@@ -1,7 +1,5 @@
 import shellish
 import unittest
-import io
-import sys
 import tempfile
 
 
@@ -13,17 +11,26 @@ class TTYPagingTests(unittest.TestCase):
             with shellish.pager_redirect('test', pagercmd='head -n1 > %s' %
                                          outfile):
                 for x in range(10):
-                    print(x)
+                    try:
+                        print(x)
+                    except BrokenPipeError:
+                        break
             with open(outfile) as f:
                 self.assertEqual(f.read(), '0\n')
 
     def test_pipe_overflow(self):
         with tempfile.TemporaryDirectory() as tdir:
             outfile = '%s/out' % tdir
+            pipe_break = False
             with shellish.pager_redirect('test', pagercmd='head -n1 > %s' %
                                          outfile):
                 for x in range(10000):
-                    print(('%d' % x) * 1000)
+                    try:
+                        print(('%d' % x) * 1000)
+                    except BrokenPipeError:
+                        pipe_break = True
+                        break
+            self.assertTrue(pipe_break)
             with open(outfile) as f:
                 self.assertEqual(f.read().rstrip(), '0' * 1000)
 
