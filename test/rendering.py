@@ -155,6 +155,24 @@ class VTMLBufferTests(unittest.TestCase):
         self.assertListEqual(buf.wrap(3), ['A', 'BB'])
         self.assertListEqual(buf.wrap(2), ['A', 'BB'])
 
+    def test_wrap_newlines(self):
+        for width in 1, 2, 80:
+            with self.subTest('width=%d' % width):
+                buf = R.vtmlrender('A\nB')
+                self.assertListEqual(buf.wrap(width), ['A', 'B'])
+                buf = R.vtmlrender('A\n\nB')
+                self.assertListEqual(buf.wrap(width), ['A', '', 'B'])
+                buf = R.vtmlrender('A\n\n\nB')
+                self.assertListEqual(buf.wrap(width), ['A', '', '', 'B'])
+                buf = R.vtmlrender('A\n\n\nB')
+                self.assertListEqual(buf.wrap(width), ['A', '', '', 'B'])
+                buf = R.vtmlrender('A\n   B')
+                self.assertListEqual(buf.wrap(width), ['A', 'B'])
+                buf = R.vtmlrender('A    \n   B')
+                self.assertListEqual(buf.wrap(width), ['A', 'B'])
+                buf = R.vtmlrender('A    \nB')
+                self.assertListEqual(buf.wrap(width), ['A', 'B'])
+
     def test_bad_data(self):
         bad = [
             None,

@@ -55,7 +55,18 @@ _textwrap_word_break = re.compile('(\n|[ \t\f\v]+|[^\s]+?-+)')
 _textwrap_whitespace = re.compile('[ \t\f\v]+')
 
 
-def textwrap_slices(text, width):
+def _add_slice(seq, slc):
+    """ Our textwrap routine deals in slices.  This function will concat
+    contiguous slices as an optimization so lookup performance is faster.
+    It expects a sequence (probably a list) to add slice to or will extend
+    the last slice of the sequence if it ends where the new slice begins. """
+    if seq and seq[-1].stop == slc.start:
+        seq[-1] = slice(seq[-1].start, slc.stop)
+    else:
+        seq.append(slc)
+
+
+def _textwrap_slices(text, width):
     """ Nearly identical to textwrap.wrap except this routine is a tad bit
     safer in its algo that textwrap.  I ran into some issues with textwrap
     output that make it unusable to this usecase as a baseline text wrapper.
@@ -85,13 +96,14 @@ def textwrap_slices(text, width):
             remaining = width
         elif _textwrap_whitespace.match(chunk):
             if buf:
-                whitespace.append(slice(pos, pos + chunk_len))
+                _add_slice(whitespace, slice(pos, pos + chunk_len))
                 whitespace_len += chunk_len
         elif len(chunk) > avail_len:
             if not buf:
                 # Must hard split the chunk.
-                buf.extend(whitespace)
-                buf.append(slice(pos, pos + avail_len))
+                for x in whitespace:
+                    _add_slice(buf, x)
+                _add_slice(buf, slice(pos, pos + avail_len))
                 chunk = chunk[avail_len:]
                 pos += avail_len
             # Bump to next line without fetching the next chunk.
@@ -104,32 +116,18 @@ def textwrap_slices(text, width):
         else:
             if buf:
                 remaining -= whitespace_len
-                buf.extend(whitespace)
+                for x in whitespace:
+                    _add_slice(buf, x)
             whitespace = []
             whitespace_len = 0
-            buf.append(slice(pos, pos + chunk_len))
+            _add_slice(buf, slice(pos, pos + chunk_len))
             remaining -= chunk_len
         pos += chunk_len
         try:
             chunk = next(chunks)
         except StopIteration:
             break
-    # Compress slices for better lookup perf.
-    comp_lines = []
-    for raw in lines:
-        comp_buf = []
-        comp_lines.append(comp_buf)
-        raw_iter = iter(raw)
-        cur = next(raw_iter)
-        for s in raw_iter:
-            if s.start == cur.stop:
-                cur = slice(cur.start, s.stop)
-            else:
-                # XXX Never tested, maybe impossible.
-                comp_buf.append(cur)
-                cur = s
-        comp_buf.append(cur)
-    return comp_lines
+    return lines
 
 
 class VTMLParser(html.parser.HTMLParser):
@@ -374,20 +372,31 @@ class VTMLBuffer(object):
 
     def extend(self, buf):
         if not isinstance(buf, VTMLBuffer):
-            raise TypeError("Expected VTMLBuffer")
+            raise TypeError("Expected `VTMLBuffer`")
         self._values.extend(buf._values)
 
+    def _promiscuous_extend(self, buf, other):
+        """ Extend that supports `VTMLBuffer` and `str`. """
+        try:
+            buf.extend(other)
+        except TypeError:
+            if isinstance(other, str):
+                buf.append_str(other)
+            else:
+                raise TypeError("Expected `VTMLBuffer` or `str`")
+
     def join(self, buffers):
-        """ Same interface as b''.join and ''.join. """
+        """ Same interface as b''.join and ''.join. Supports upconversion of
+        `str` types too. """
         output = self.new()
         bufiter = iter(buffers)
         try:
-            output.extend(next(bufiter))
+            self._promiscuous_extend(output, next(bufiter))
         except StopIteration:
             return output
         for buf in bufiter:
             output.extend(self)
-            output.extend(buf)
+            self._promiscuous_extend(output, buf)
         return output
 
     def text(self):
@@ -422,7 +431,7 @@ class VTMLBuffer(object):
         sequences by returning a list of VTMLBuffer objects. """
         if width <= 0:
             raise ValueError("Invalid wrap width: %d" % width)
-        slices = textwrap_slices(self.text(), width)
+        slices = _textwrap_slices(self.text(), width)
         return [self.from_buffers(self[s] for s in line_slices)
                 for line_slices in slices]
 
