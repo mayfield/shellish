@@ -52,7 +52,11 @@ def beststr(*strings):
 #  * Newlines are not grouped with other whitespace.
 #  * Other whitespace is grouped.
 _textwrap_word_break = re.compile('(\n|[ \t\f\v]+|[^\s]+?-+)')
-_textwrap_whitespace = re.compile('[ \t\f\v]+')
+_whitespace = re.compile('[ \t\f\v]+')
+
+
+def is_whitespace(value):
+    return not not _whitespace.match(value)
 
 
 def _add_slice(seq, slc):
@@ -66,7 +70,7 @@ def _add_slice(seq, slc):
         seq.append(slc)
 
 
-def _textwrap_slices(text, width):
+def _textwrap_slices(text, width, strip_leading_indent=False):
     """ Nearly identical to textwrap.wrap except this routine is a tad bit
     safer in its algo that textwrap.  I ran into some issues with textwrap
     output that make it unusable to this usecase as a baseline text wrapper.
@@ -80,11 +84,26 @@ def _textwrap_slices(text, width):
     lines = [buf]
     whitespace = []
     whitespace_len = 0
+    pos = 0
     try:
         chunk = next(chunks)
     except StopIteration:
         chunk = ''
-    pos = 0
+    if not strip_leading_indent and is_whitespace(chunk):
+        # Add leading indent for first line, but only up to one lines worth.
+        chunk_len = len(chunk)
+        if chunk_len >= width:
+            _add_slice(buf, slice(0, width))
+            buf = []
+            lines.append(buf)
+        else:
+            _add_slice(buf, slice(0, chunk_len))
+            remaining -= chunk_len
+        pos = chunk_len
+        try:
+            chunk = next(chunks)
+        except StopIteration:
+            chunk = ''
     while True:
         avail_len = remaining - whitespace_len
         chunk_len = len(chunk)
@@ -94,7 +113,7 @@ def _textwrap_slices(text, width):
             whitespace = []
             whitespace_len = 0
             remaining = width
-        elif _textwrap_whitespace.match(chunk):
+        elif is_whitespace(chunk):
             if buf:
                 _add_slice(whitespace, slice(pos, pos + chunk_len))
                 whitespace_len += chunk_len
@@ -176,6 +195,8 @@ class VTMLParser(html.parser.HTMLParser):
         if self.open_tags:
             for tag in self.open_tags:
                 self.vbuf.append_tag(tag)
+        for mark, special in self.escape_map:
+            data = data.replace(mark, special)
         self.vbuf.append_str(data)
 
     def handle_entityref(self, name):
@@ -199,12 +220,6 @@ class VTMLParser(html.parser.HTMLParser):
 
     def getvalue(self):
         assert self.closed
-        # XXX No thanks.
-        for i, (op, val) in enumerate(self.vbuf._values):
-            if op == self.vbuf.ops.str:
-                for mark, special in self.escape_map:
-                    val = val.replace(mark, special)
-                self.vbuf._values[i] = (op, val)
         return self.vbuf
 
 
@@ -264,8 +279,16 @@ class VTMLBuffer(object):
     def __lt__(self, other):
         return str(self) < str(other)
 
+    def __contains__(self, other):
+        return other in self.text()
+
     def __format__(self, fmt):
-        """ Add support for embedded VTML. """
+        """ Add support for re-embedded VTML via the `vtml` specifier in a
+        `str.format` argument. E.g.
+            >>> words = shellish.vtmlrender('<u>underlined words')
+            >>> '<b>Make bold: {:vtml}, thanks</b>'.format(words)
+            '<b>Make bold: <u>underlined words</u>, thanks</b>'
+        """
         if fmt == 'vtml':
             buf = []
             tag_stack = []
@@ -311,6 +334,21 @@ class VTMLBuffer(object):
             return other + self
         else:
             raise TypeError("Invalid concatenation type: %s" % type(other))
+
+    def __mul__(self, factor):
+        if not isinstance(factor, int):
+            raise TypeError('Expected `int` type factor')
+        new = self.copy()
+        new._values *= factor
+        return new
+
+    __rmul__ = __mul__
+
+    def __imul__(self, factor):
+        if not isinstance(factor, int):
+            raise TypeError('Expected `int` type factor')
+        self._values *= factor
+        return self
 
     def __getitem__(self, key):
         """ Support for slicing and indexing.  Results are always a new
@@ -383,7 +421,8 @@ class VTMLBuffer(object):
             if isinstance(other, str):
                 buf.append_str(other)
             else:
-                raise TypeError("Expected `VTMLBuffer` or `str`")
+                raise TypeError("Expected `VTMLBuffer` or `str`. Got `%s`" %
+                                type(other))
 
     def join(self, buffers):
         """ Same interface as b''.join and ''.join. Supports upconversion of
@@ -412,26 +451,30 @@ class VTMLBuffer(object):
         return new
 
     def clip(self, length, cliptext=''):
-        """ Use instead of slicing to compensate for opcode behavior. """
+        """ Clip text for lines exceeding a particular length.  Newlines and
+        trailing are also removed. """
         if length < 0:
             raise ValueError("Negative clip invalid")
         cliplen = len(cliptext)
         if length < cliplen:
             raise ValueError("Clip length too small: %d < %d" % (length,
                              cliplen))
-        if length >= len(self):
-            return self.copy()
-        new = self[:length - cliplen]
-        if cliptext:
+        text = self.text()
+        first = text.splitlines()[0] if text else text
+        stripped = first.rstrip()
+        clipping = len(first) != len(text) or len(stripped) > length
+        adj_length = min(len(stripped), length - (cliplen if clipping else 0))
+        new = self[:adj_length]
+        if clipping and cliptext:
             new.append_str(cliptext)
         return new
 
-    def wrap(self, width):
+    def wrap(self, width, **options):
         """ Text wrapping similar to textwrap.wrap but protects vt escape
         sequences by returning a list of VTMLBuffer objects. """
         if width <= 0:
             raise ValueError("Invalid wrap width: %d" % width)
-        slices = _textwrap_slices(self.text(), width)
+        slices = _textwrap_slices(self.text(), width, **options)
         return [self.from_buffers(self[s] for s in line_slices)
                 for line_slices in slices]
 
@@ -448,7 +491,7 @@ class VTMLBuffer(object):
         new.extend(self)
         return new
 
-    def center(self, width, fillchar=' ', rstrip=False):
+    def center(self, width, fillchar=' '):
         """ Center strings so uneven padding always favors trailing pad.  When
         centering clumps of text this produces better results than str.center
         which alternates which side uneven padding occurs on. """
@@ -459,22 +502,41 @@ class VTMLBuffer(object):
             new = self.new()
             new.append_str(fillchar * leftlen)
             new.extend(self)
-            if not rstrip:
-                new.append_str(fillchar * rightlen)
+            new.append_str(fillchar * rightlen)
             return new
         else:
             return self.copy()
 
-_vtmlparser = VTMLParser()
+    def rstrip(self):
+        """ Removing trailing whitespace. """
+        removals = []
+        i = len(self._values)
+        for op, val in reversed(self._values):
+            i -= 1
+            if op == self.ops.str:
+                if is_whitespace(val):
+                    removals.append(i)
+                else:
+                    break
+        copy = self.copy()
+        for i in removals:
+            del copy._values[i]
+        return copy
+
+    def startswith(self, other):
+        return self.text().startswith(other)
+
+    def endswith(self, other):
+        return self.text().endswith(other)
 
 
-def vtmlrender(vtmarkup, plain=None, strict=False):
+def vtmlrender(vtmarkup, plain=None, strict=False, vtmlparser=VTMLParser()):
     """ Look for vt100 markup and render vt opcodes into a VTMLBuffer. """
     if isinstance(vtmarkup, VTMLBuffer):
         return vtmarkup.plain() if plain else vtmarkup
     try:
-        _vtmlparser.feed(vtmarkup)
-        _vtmlparser.close()
+        vtmlparser.feed(vtmarkup)
+        vtmlparser.close()
     except:
         if strict:
             raise
@@ -482,10 +544,10 @@ def vtmlrender(vtmarkup, plain=None, strict=False):
         buf.append_str(str(vtmarkup))
         return buf
     else:
-        buf = _vtmlparser.getvalue()
+        buf = vtmlparser.getvalue()
         return buf.plain() if plain else buf
     finally:
-        _vtmlparser.reset()
+        vtmlparser.reset()
 
 
 def vtmlprint(*values, plain=None, strict=None, **options):

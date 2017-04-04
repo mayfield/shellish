@@ -91,6 +91,31 @@ class VTMLBufferTests(unittest.TestCase):
         self.assertEqual(s.clip(7, '...'), startval[:4] + '...')
         self.assertEqual(s.clip(6, '...'), startval[:3] + '...')
 
+    def test_clip_strip(self):
+        self.assertEqual(R.vtmlrender('\n').clip(10, '!').text(), '!')
+        self.assertEqual(R.vtmlrender(' \n').clip(10, '!').text(), '!')
+        self.assertEqual(R.vtmlrender(' ').clip(10, '!').text(), '')
+        self.assertEqual(R.vtmlrender('A\n').clip(10, '!').text(), 'A!')
+        self.assertEqual(R.vtmlrender('A\nB').clip(10, '!').text(), 'A!')
+        self.assertEqual(R.vtmlrender('A\n').clip(1, '!').text(), '!')
+        self.assertEqual(R.vtmlrender('A ').clip(1, '!').text(), 'A')
+        self.assertEqual(R.vtmlrender('A  ').clip(1, '!').text(), 'A')
+        self.assertEqual(R.vtmlrender('A \n').clip(1, '!').text(), '!')
+        self.assertEqual(R.vtmlrender('A \n ').clip(1, '!').text(), '!')
+        self.assertEqual(R.vtmlrender('A\n').clip(2, '!').text(), 'A!')
+        self.assertEqual(R.vtmlrender('A ').clip(2, '!').text(), 'A')
+        self.assertEqual(R.vtmlrender('A  ').clip(2, '!').text(), 'A')
+        self.assertEqual(R.vtmlrender('A \n').clip(2, '!').text(), 'A!')
+        self.assertEqual(R.vtmlrender('A \n ').clip(2, '!').text(), 'A!')
+        self.assertEqual(R.vtmlrender('    ').clip(5, '!').text(), '')
+        self.assertEqual(R.vtmlrender('    ').clip(4, '!').text(), '')
+        self.assertEqual(R.vtmlrender('    ').clip(3, '!').text(), '')
+        self.assertEqual(R.vtmlrender('    ').clip(2, '!').text(), '')
+        self.assertEqual(R.vtmlrender('    ').clip(1, '!').text(), '')
+
+    def test_clip_empty(self):
+        self.assertEqual(R.vtmlrender('').clip(10, '!').text(), '')
+
     def test_wrap_empty(self):
         buf = R.vtmlrender('')
         self.assertListEqual(buf.wrap(10), [''])
@@ -129,31 +154,31 @@ class VTMLBufferTests(unittest.TestCase):
 
     def test_wrap_multi_whitespace_stronly(self):
         buf = R.vtmlrender(' A BB  CCC  DDDD EEEEE ')
-        self.assertListEqual(buf.wrap(10), ['A BB  CCC', 'DDDD EEEEE'])
-        self.assertListEqual(buf.wrap(8), ['A BB', 'CCC', 'DDDD', 'EEEEE'])
-        self.assertListEqual(buf.wrap(7), ['A BB', 'CCC', 'DDDD', 'EEEEE'])
+        self.assertListEqual(buf.wrap(10), [' A BB  CCC', 'DDDD EEEEE'])
+        self.assertListEqual(buf.wrap(8), [' A BB', 'CCC', 'DDDD', 'EEEEE'])
+        self.assertListEqual(buf.wrap(7), [' A BB', 'CCC', 'DDDD', 'EEEEE'])
         self.assertListEqual(buf.wrap(2), [
-            'A', 'BB', 'CC', 'C', 'DD', 'DD', 'EE', 'EE', 'E'])
+            ' A', 'BB', 'CC', 'C', 'DD', 'DD', 'EE', 'EE', 'E'])
         self.assertListEqual(buf.wrap(1), [
-            'A', 'B', 'B', 'C', 'C', 'C', 'D', 'D', 'D', 'D', 'E', 'E', 'E',
-            'E', 'E'])
+            ' ', 'A', 'B', 'B', 'C', 'C', 'C', 'D', 'D', 'D', 'D', 'E', 'E',
+            'E', 'E', 'E'])
 
     def test_wrap_overflow_whitespace_stronly(self):
         buf = R.vtmlrender('        A BB  ')
-        self.assertListEqual(buf.wrap(20), ['A BB'])
-        self.assertListEqual(buf.wrap(5), ['A BB'])
-        self.assertListEqual(buf.wrap(3), ['A', 'BB'])
-        self.assertListEqual(buf.wrap(2), ['A', 'BB'])
+        self.assertListEqual(buf.wrap(20), ['        A BB'])
+        self.assertListEqual(buf.wrap(5), ['     ', 'A BB'])
+        self.assertListEqual(buf.wrap(3), ['   ', 'A', 'BB'])
+        self.assertListEqual(buf.wrap(2), ['  ', 'A', 'BB'])
         buf = R.vtmlrender('        A BB         ')
-        self.assertListEqual(buf.wrap(20), ['A BB'])
-        self.assertListEqual(buf.wrap(5), ['A BB'])
-        self.assertListEqual(buf.wrap(3), ['A', 'BB'])
-        self.assertListEqual(buf.wrap(2), ['A', 'BB'])
+        self.assertListEqual(buf.wrap(20), ['        A BB'])
+        self.assertListEqual(buf.wrap(5), ['     ', 'A BB'])
+        self.assertListEqual(buf.wrap(3), ['   ', 'A', 'BB'])
+        self.assertListEqual(buf.wrap(2), ['  ', 'A', 'BB'])
         buf = R.vtmlrender('        A             BB         ')
-        self.assertListEqual(buf.wrap(20), ['A             BB'])
-        self.assertListEqual(buf.wrap(5), ['A', 'BB'])
-        self.assertListEqual(buf.wrap(3), ['A', 'BB'])
-        self.assertListEqual(buf.wrap(2), ['A', 'BB'])
+        self.assertListEqual(buf.wrap(30), ['        A             BB'])
+        self.assertListEqual(buf.wrap(5), ['     ', 'A', 'BB'])
+        self.assertListEqual(buf.wrap(3), ['   ', 'A', 'BB'])
+        self.assertListEqual(buf.wrap(2), ['  ', 'A', 'BB'])
 
     def test_wrap_newlines(self):
         for width in 1, 2, 80:
@@ -172,6 +197,21 @@ class VTMLBufferTests(unittest.TestCase):
                 self.assertListEqual(buf.wrap(width), ['A', 'B'])
                 buf = R.vtmlrender('A    \nB')
                 self.assertListEqual(buf.wrap(width), ['A', 'B'])
+
+    def test_wrap_no_indent(self):
+        buf = R.vtmlrender('  A\nB')
+        self.assertListEqual(buf.wrap(20, strip_leading_indent=True),
+                             ['A', 'B'])
+
+    @unittest.skip
+    def test_wrap_expand_tabs(self):
+        buf = R.vtmlrender('A\tB')
+        self.assertListEqual(buf.wrap(20), ['A    B'])
+        self.assertListEqual(buf.wrap(3), ['A', 'B'])
+        self.assertListEqual(buf.wrap(2), ['A', 'B'])
+        self.assertListEqual(buf.wrap(20, expand_tabs=False), ['A\tB'])
+        self.assertListEqual(buf.wrap(3, expand_tabs=False), ['A\tB'])
+        self.assertListEqual(buf.wrap(2, expand_tabs=False), ['A', 'B'])
 
     def test_bad_data(self):
         bad = [
@@ -278,6 +318,103 @@ class VTMLBufferTests(unittest.TestCase):
         for t in ('a#bc', 'a&#1;'):
             self.assertEqual(R.vtmlrender(t, strict=True), t)
 
+    def test_multiply(self):
+        a = R.vtmlrender('A')
+        self.assertEqual(a * 2, R.vtmlrender('AA'))
+        self.assertEqual(a * 3, R.vtmlrender('AAA'))
+        self.assertEqual((a * 3).text(), 'AAA')
+        a = R.vtmlrender('AB')
+        self.assertEqual(a * 2, R.vtmlrender('ABAB'))
+        self.assertEqual(a * 3, R.vtmlrender('ABABAB'))
+        self.assertEqual((a * 3).text(), 'ABABAB')
+        self.assertRaises(TypeError, lambda: 1.5 * a)
+        self.assertRaises(TypeError, lambda: '' * a)
+        self.assertRaises(TypeError, lambda: a * a)
+
+    def test_inplace_multiply(self):
+        a = a_save = R.vtmlrender('A ')
+        a *= 3
+        self.assertIs(a, a_save)
+        self.assertEqual(a, R.vtmlrender('A A A '))
+        self.assertRaises(TypeError, lambda: 1.5 * a)
+        self.assertRaises(TypeError, lambda: '' * a)
+        self.assertRaises(TypeError, lambda: a * a)
+
+    def test_right_multiply(self):
+        a = R.vtmlrender('A')
+        self.assertEqual(2 * a, R.vtmlrender('AA'))
+        self.assertEqual(3 * a, R.vtmlrender('AAA'))
+        self.assertEqual((3 * a).text(), 'AAA')
+        a = R.vtmlrender('AB')
+        self.assertEqual(2 * a, R.vtmlrender('ABAB'))
+        self.assertEqual(3 * a, R.vtmlrender('ABABAB'))
+        self.assertEqual((3 * a).text(), 'ABABAB')
+        self.assertRaises(TypeError, lambda: 1.5 * a)
+        self.assertRaises(TypeError, lambda: '' * a)
+        self.assertRaises(TypeError, lambda: a * a)
+
+    def test_left_justify(self):
+        a = R.vtmlrender('A')
+        self.assertEqual(a.ljust(0), 'A')
+        self.assertEqual(a.ljust(1), 'A')
+        self.assertEqual(a.ljust(2), 'A ')
+        self.assertEqual(a.ljust(3), 'A  ')
+
+    def test_startswith(self):
+        abc = R.vtmlrender('abc')
+        self.assertIs(abc.startswith(''), True)
+        self.assertIs(abc.startswith('a'), True)
+        self.assertIs(abc.startswith('ab'), True)
+        self.assertIs(abc.startswith('abc'), True)
+        self.assertIs(abc.startswith('A'), False)
+        self.assertIs(abc.startswith('ABC'), False)
+        self.assertIs(abc.startswith('ABCD'), False)
+        a = R.vtmlrender('<b>a')
+        b = R.vtmlrender('b')
+        c = R.vtmlrender('<u>c')
+        self.assertIs((a + b + c).startswith('abc'), True)
+        self.assertIs((a + b + c).startswith(''), True)
+        self.assertIs((a + b + c).startswith('<b>'), False)
+        self.assertIs((a + b + c).startswith('A'), False)
+        self.assertIs((a + b + c).startswith('ABC'), False)
+        self.assertIs((a + b + c).startswith('ABCD'), False)
+
+    def test_endswith(self):
+        abc = R.vtmlrender('abc')
+        self.assertIs(abc.endswith(''), True)
+        self.assertIs(abc.endswith('c'), True)
+        self.assertIs(abc.endswith('bc'), True)
+        self.assertIs(abc.endswith('abc'), True)
+        self.assertIs(abc.endswith('C'), False)
+        self.assertIs(abc.endswith('ABC'), False)
+        self.assertIs(abc.endswith('ABCD'), False)
+        abc = R.vtmlrender('<b>a')
+        abc += R.vtmlrender('b')
+        abc += R.vtmlrender('<u>c</u>')
+        self.assertIs(abc.endswith('abc'), True)
+        self.assertIs(abc.endswith(''), True)
+        self.assertIs(abc.endswith('</u>'), False)
+        self.assertIs(abc.endswith('C'), False)
+        self.assertIs(abc.endswith('ABC'), False)
+        self.assertIs(abc.endswith('ABCD'), False)
+
+    def test_in(self):
+        abc = R.vtmlrender('abc')
+        self.assertIn('', abc)
+        self.assertIn('a', abc)
+        self.assertIn('abc', abc)
+        self.assertIn('abc', abc)
+        self.assertNotIn('A', abc)
+        self.assertNotIn('ABC', abc)
+        self.assertNotIn('ABCD', abc)
+        abc = R.vtmlrender('<b>a') + R.vtmlrender('bc') + R.vtmlrender('<u>c')
+        self.assertIn('a', abc)
+        self.assertIn('abc', abc)
+        self.assertNotIn('<b>', abc)
+        self.assertNotIn('A', abc)
+        self.assertNotIn('ABC', abc)
+        self.assertNotIn('ABCD', abc)
+        self.assertNotIn('abcd', abc)
 
 class HTMLConversion(unittest.TestCase):
 
