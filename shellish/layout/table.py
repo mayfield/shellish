@@ -4,6 +4,7 @@ Table layout.
 
 import collections
 import csv
+import functools
 import inspect
 import itertools
 import json
@@ -53,7 +54,7 @@ class Table(object):
                  clip=None, overflow=None, flex=True, file=None, cliptext=None,
                  column_minwidth=None, column_padding=None, column_align=None,
                  renderer=None, title=None, title_align=None, column_mask=None,
-                 hide_header=False, hide_footer=False):
+                 hide_header=False, hide_footer=False, align_rows=True):
         """ The .columns should be a list of width specs or a style dict.
         Width specs can be whole numbers representing fixed char widths,
         fractions representing percentages of available table width or None
@@ -72,11 +73,14 @@ class Table(object):
         The columns style dict supports the following properties:
 
             "width":    Follows the aforementioned column width definition.
-            "minwidth": Minimum characters a column can be shrunken to.
+            "minwidth": Minimum width of column.
             "padding":  Property for custom padding of individual columns.
                         Whole number of white space characters to add.
             "align":    How to justify the contents of the column. Valid
                         choices are 'left', 'right', and 'center'.
+            "overflow": How the column should be treated when it is too wide
+                        to fit in the allotted space.  The default value comes
+                        from the table's `overflow` global option.
 
             E.g.
 
@@ -89,7 +93,8 @@ class Table(object):
                 "padding": 0,
                 "align": "center"
             }, {
-                "padding": 0
+                "padding": 0,
+                "overflow": "clip"
             }])
 
         When any values are omitted from the column def they will pickup
@@ -114,10 +119,12 @@ class Table(object):
         to use.  It is permissible to submit your entire data set at this
         point if you have enough memory.
 
-        To control overflow of wide columns, set the .overflow argument to one
+        To control overflow of wide columns set the .overflow argument to one
         of the .overflow_modes.  None will defer handling to the renderer class
         used for this table.  `clip` will shorten wide strings.  `wrap` will
         continue long lines on the next row affecting the entire table output.
+        Note that `overflow` can be set in the column specification as well,
+        which will take precedence over this setting.
         """
         if clip is not None:
             warnings.warn('clip is deprecated, use overflow=clip',
@@ -144,6 +151,7 @@ class Table(object):
         self.hide_header = hide_header
         self.hide_footer = hide_footer
         self.column_mask = column_mask
+        self.align_rows = align_rows
         self.default_renderer = None
         if not renderer:
             if not self.file.isatty():
@@ -334,7 +342,8 @@ class Table(object):
             "width": None,
             "minwidth": self.column_minwidth,
             "padding": self.column_padding,
-            "align": self.column_align
+            "align": self.column_align,
+            "overflow": self.overflow
         } for x in range(columns)]
         if self.columns_def:
             for dst, src in zip(spec, self.columns_def):
@@ -425,7 +434,7 @@ class TableRenderer(object):
             self.prerendered, self.seed = self.seed_collect(seed)
         self.widths = self.calc_widths(self.prerendered)
         self.formatters = self.make_formatters()
-        self.headers_drawn = not headers
+        self.headers_drawn = False
         self.footers_drawn = False
 
     def __enter__(self):
@@ -458,7 +467,7 @@ class TableRenderer(object):
         return list(self.render_data(constrained_feed())), seed_iter
 
     def print_headers(self, headers):
-        lines = [VTMLBuffer('').join(x) for x in self.format_row(headers)]
+        lines = [VTMLBuffer('').join(x) for x in self.format_rows([headers])]
         for line in lines:
             print(self.cell_format(self.header_tpl.format(line)),
                   file=self.file)
@@ -496,7 +505,8 @@ class TableRenderer(object):
         our pseudo "frozen" nature. """
         for x in ('file', 'overflow', 'cliptext', 'flex', 'width', 'title',
                   'title_align', 'max_render_prefill', 'max_render_delay',
-                  'min_render_prefill', 'column_mask', 'hide_header'):
+                  'min_render_prefill', 'column_mask', 'hide_header',
+                  'align_rows'):
             setattr(self, x, getattr(table, x))
         if self.width is None:
             self.width = shutil.get_terminal_size()[0] \
@@ -516,17 +526,66 @@ class TableRenderer(object):
         for obj in data:
             yield [self.cell_format(access(obj)) for access in self.accessors]
 
-    def format_row(self, items):
+    def format_rows(self, rows):
         """ Apply overflow, justification and padding to a row.  Returns lines
         (plural) of rendered text for the row. """
-        assert all(isinstance(x, VTMLBuffer) for x in items)
-        raw_lines = (fn(x) for x, fn in zip(items, self.formatters))
-        for line in itertools.zip_longest(*raw_lines):
+        def expanded():
+            for items in rows:
+                assert all(isinstance(x, VTMLBuffer) for x in items)
+                raw = (fn(x) for x, fn in zip(items, self.formatters))
+                yield itertools.zip_longest(*raw)
+        aligner = self._column_pad if self.align_rows else self._column_pack
+        yield from aligner(itertools.chain.from_iterable(expanded()))
+
+    def _column_pack(self, formatted_rows):
+        """ Top-align column data irrespective of original row alignment.  E.g.
+            INPUT: [
+                ["1a", "2a"],
+                [None, "2b"],
+                ["1b", "2c"],
+                [None, "2d"]
+            ]
+            OUTPUT: [
+                ["1a", "2a"],
+                ["1b", "2b"],
+                [<blank>, "2c"],
+                [<blank>, "2d"]
+            ]
+        """
+        col_count = len(self.widths)
+        queues = [collections.deque() for _ in range(col_count)]
+        for row in formatted_rows:
+            for col, queue in zip(row, queues):
+                if col is not None:
+                    queue.append(col)
+            if all(queues):
+                yield [x.popleft() for x in queues]
+        blanks = list(map(self._get_blank_cell, range(col_count)))
+        while any(queues):
+            yield [q.popleft() if q else blank
+                   for q, blank in zip(queues, blanks)]
+
+    def _column_pad(self, formatted_rows):
+        """ Expand blank lines caused from overflow of other columns to blank
+        whitespace.  E.g.
+            INPUT: [
+                ["1a", "2a"],
+                [None, "2b"],
+                ["1b", "2c"],
+                [None, "2d"]
+            ]
+            OUTPUT: [
+                ["1a", "2a"],
+                [<blank>, "2b"],
+                ["1b", "2c"],
+                [<blank>, "2d"]
+            ]
+        """
+        for line in formatted_rows:
             line = list(line)
             for i, col in enumerate(line):
                 if col is None:
-                    # Pad empty column.
-                    line[i] = self.formatters[i](VTMLBuffer())[0]
+                    line[i] = self._get_blank_cell(i)
             yield line
 
     def format_fullwidth(self, value):
@@ -537,17 +596,22 @@ class TableRenderer(object):
         fmt = self.make_formatter(self.width - pad, pad, self.title_align)
         return VTMLBuffer('\n').join(fmt(value))
 
-    def print_rendered(self, rendered_values):
+    def print_rendered(self, rendered_values, rstrip=True):
         """ Format and print the pre-rendered data to the output device. """
-        for row in rendered_values:
-            for line in self.format_row(row):
-                print(*line, sep='', file=self.file)
+        for line_buf in self.format_rows(rendered_values):
+            line = ''.join(map(str, line_buf))
+            print(line.rstrip() if rstrip else line, file=self.file)
+
+    @functools.lru_cache()
+    def _get_blank_cell(self, index):
+        """ Return a formatted blank cell for a specific column index. """
+        return self.formatters[index](VTMLBuffer())[0]
 
     def print(self, data):
         if not self.headers_drawn:
-            if not self.hide_header:
-                if self.title:
-                    self.print_title(self.cell_format(self.title))
+            if self.title:
+                self.print_title(self.cell_format(self.title))
+            if not self.hide_header and any(self.headers):
                 headers = [self.cell_format(x or '') for x in self.headers]
                 self.print_headers(headers)
             self.headers_drawn = True
@@ -556,29 +620,29 @@ class TableRenderer(object):
     def print_linebreak(self):
         print(self.linebreak * self.width, file=self.file)
 
-    def make_formatter(self, width, padding, alignment):
+    def make_formatter(self, width, padding, alignment, overflow=None):
         """ Create formatter function that factors the width and alignment
         settings. """
-        if self.overflow == 'clip':
-            overflow = lambda x: [x.clip(width, self.cliptext)]
-        elif self.overflow == 'wrap':
-            overflow = lambda x: x.wrap(width)
+        if overflow is None:
+            overflow = self.overflow
+        if overflow == 'clip':
+            overflower = lambda x: [x.clip(width, self.cliptext)]
+        elif overflow == 'wrap':
+            overflower = lambda x: x.wrap(width)
         else:
-            overflow = lambda x: [x]
+            overflower = lambda x: [x]
         align = self.get_aligner(alignment, width)
         pad = self.get_aligner('center', width + padding)
-
-        def fn(value, overflow=overflow, align=align, pad=pad):
-            return [pad(align(x)) for x in overflow(value)]
-        return fn
+        return lambda value: [pad(align(x)) for x in overflower(value)]
 
     def make_formatters(self):
         """ Create a list formatter functions for each column.  They can then
         be stored in the render spec for faster justification processing. """
-        return [self.make_formatter(inner_w, spec['padding'], spec['align'])
+        return [self.make_formatter(inner_w, spec['padding'], spec['align'],
+                                    spec['overflow'])
                 for spec, inner_w in zip(self.colspec, self.widths)]
 
-    def uniform_dist(self, spread, total):
+    def _uniform_dist(self, spread, total):
         """ Produce a uniform distribution of `total` across a list of
         `spread` size. The result is non-random and uniform. """
         fraction, fixed_increment = math.modf(total / spread)
@@ -593,30 +657,44 @@ class TableRenderer(object):
             dist.append(fixed_increment + withdrawl)
         return dist
 
+    @property
+    def usable_width(self):
+        """ The available combined character width when all padding is
+        removed. """
+        return self.width - sum(x['padding'] for x in self.colspec)
+
+    def width_normalize(self, width):
+        """ Handle a width style, which can be a fractional number
+        representing a percentage of available width or positive integers
+        which indicate a fixed width. """
+        if width is not None:
+            if width > 0 and width < 1:
+                return int(width * self.usable_width)
+            else:
+                return int(width)
+
     def calc_widths(self, sample_data):
         """ Convert the colspec into absolute col widths. The sample data
         should be already rendered if used in conjunction with a Table. """
-        usable_width = self.width
-        usable_width -= sum(x['padding'] for x in self.colspec)
+        remaining = self.usable_width
         spec = [x['width'] for x in self.colspec]
-        remaining = usable_width
         unspec = []
-        for i, x in enumerate(spec):
-            if x is None:
+        for i, width in enumerate(spec):
+            fixed_width = self.width_normalize(width)
+            if fixed_width is None:
                 unspec.append(i)
-            elif x > 0 and x < 1:
-                spec[i] = w = math.floor(x * usable_width)
-                remaining -= w
             else:
-                remaining -= x
+                spec[i] = fixed_width  # Maybe adjust for fractional widths.
+                remaining -= fixed_width
         if unspec:
             if self.flex and sample_data:
                 for i, w in self.calc_flex(sample_data, remaining, unspec):
                     spec[i] = w
             else:
-                dist = self.uniform_dist(len(unspec), remaining)
+                dist = self._uniform_dist(len(unspec), remaining)
                 for i, width in zip(unspec, dist):
                     spec[i] = width
+        assert all(isinstance(x, int) for x in spec), spec  # XXX
         return spec
 
     def calc_flex(self, data, max_width, cols):
@@ -625,10 +703,12 @@ class TableRenderer(object):
         calculate the best concession widths. """
         colstats = []
         for i in cols:
-            lengths = [len(x[i]) for x in data]
+            lengths = [len(xx) for x in data
+                       for xx in x[i].text().splitlines()]
             if self.headers:
                 lengths.append(len(self.headers[i]))
-            lengths.append(self.colspec[i]['minwidth'])
+            lengths.append(self.width_normalize(self.colspec[i]['minwidth']))
+            assert all(isinstance(x, int) for x in lengths), lengths  # XXX
             counts = collections.Counter(lengths)
             colstats.append({
                 "column": i,
@@ -645,10 +725,10 @@ class TableRenderer(object):
             # Fill remaining space proportionately.
             remaining = max_width
             for x in colstats:
-                x['offt'] = math.floor((x['offt'] / required) * max_width)
+                x['offt'] = int((x['offt'] / required) * max_width)
                 remaining -= x['offt']
             if remaining:
-                dist = self.uniform_dist(len(cols), remaining)
+                dist = self._uniform_dist(len(cols), remaining)
                 for adj, col in zip(dist, colstats):
                     col['offt'] += adj
         return [(x['column'], x['offt']) for x in colstats]
@@ -662,7 +742,8 @@ class TableRenderer(object):
         next_score = lambda x: (x['counts'][x['offt']] + x['chop_mass'] +
                                 x['chop_count']) / x['total_mass']
         cur_width = lambda: sum(x['offt'] for x in colstats)
-        min_width = lambda x: self.colspec[x['column']]['minwidth']
+        min_width = lambda x: self.width_normalize(
+            self.colspec[x['column']]['minwidth'])
         while cur_width() > max_width:
             nextaffects = [(next_score(x), i) for i, x in enumerate(colstats)
                            if x['offt'] > min_width(x)]
@@ -801,15 +882,14 @@ class MarkdownTableRenderer(PlainTableRenderer):
               file=self.file)
 
     def print_headers(self, headers):
-        for line in self.format_row(headers):
+        for line in self.format_rows([headers]):
             self.mdprint(*map(str, line))
         self.mdprint(*("-" * (width + colspec['padding'])
                      for width, colspec in zip(self.widths, self.colspec)))
 
     def print_rendered(self, rendered_values):
-        for row in rendered_values:
-            for line in self.format_row(row):
-                self.mdprint(*line)
+        for line in self.format_rows(rendered_values):
+            self.mdprint(*line)
 
     def print_footer(self, content):
         print("\n_%s_" % content, file=self.file)

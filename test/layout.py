@@ -21,7 +21,7 @@ def fileredir(call, *args, **kwargs):
     return output, call(*args, file=file, **kwargs)
 
 
-class TabularUnflex(unittest.TestCase):
+class TableUnflex(unittest.TestCase):
 
     def test_only_pct(self):
         widths = calc_table(.10, .40, .50)
@@ -112,15 +112,39 @@ class TableRendering(unittest.TestCase):
         t = self.table(column_padding=1, width=15)
         t.print([text_a, text_b])
         first, second = self.get_lines()
-        self.assertEqual(second, '333 4444 55555 ')
+        self.assertEqual(second, '333 4444 55555')
         t = self.table(column_padding=2, width=18)
         t.print([text_a, text_b])
         first, second = self.get_lines()
-        self.assertEqual(second, ' 333  4444  55555 ')
+        self.assertEqual(second, ' 333  4444  55555')
         t = self.table(column_padding=3, width=21)
         t.print([text_a, text_b])
         first, second = self.get_lines()
-        self.assertEqual(second, ' 333   4444   55555  ')
+        self.assertEqual(second, ' 333   4444   55555')
+
+    def test_minwidth_pct(self):
+        cols = ({
+            "minwidth": .10,
+        }, {
+            "minwidth": .40,
+        }, {
+            "minwidth": .50,
+        })
+        data = ["A" * 70, "B" * 156, "C" * 56]  # overflow all cols
+        widths = calc_table(*cols, flex=True, data=data)
+        self.assertEqual(widths, [10, 40, 50])
+
+    def test_minwidth_fixed(self):
+        cols = ({
+            "minwidth": 10,
+        }, {
+            "minwidth": 40,
+        }, {
+            "minwidth": 50,
+        })
+        data = ["A" * 70, "B" * 156, "C" * 56]  # overflow all cols
+        widths = calc_table(*cols, flex=True, data=data)
+        self.assertEqual(widths, [10, 40, 50])
 
 
 class TableDataSupport(unittest.TestCase):
@@ -341,7 +365,7 @@ class TableCalcs(unittest.TestCase):
         self.assertEqual(sum(widths), 100)
 
     def test_uniform_dist(self):
-        dist = L.TableRenderer.uniform_dist
+        dist = L.TableRenderer._uniform_dist
         for i in range(1, 101):
             for ii in range(151):
                 d = dist(None, i, ii)
