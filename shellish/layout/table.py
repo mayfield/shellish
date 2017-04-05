@@ -41,20 +41,22 @@ class Table(object):
     cliptext = beststr('…', '...')
     column_minwidth = len(cliptext)
     renderer_types = {}
-    overflow_modes = 'clip', 'wrap', None
+    overflow_modes = 'clip', 'wrap', 'preformatted'
+    justify = True
 
     # You probably shouldn't mess with these unless you really need custom
     # rendering performance.  Chances are you really don't and should
     # manage your data stream more carefully first.
     min_render_prefill = 5
-    max_render_prefill = 200
+    max_render_prefill = 1000
     max_render_delay = 2
 
     def __init__(self, columns=None, headers=None, accessors=None, width=None,
                  clip=None, overflow=None, flex=True, file=None, cliptext=None,
                  column_minwidth=None, column_padding=None, column_align=None,
                  renderer=None, title=None, title_align=None, column_mask=None,
-                 hide_header=False, hide_footer=False, align_rows=True):
+                 hide_header=False, hide_footer=False, align_rows=True,
+                 justify=None):
         """ The .columns should be a list of width specs or a style dict.
         Width specs can be whole numbers representing fixed char widths,
         fractions representing percentages of available table width or None
@@ -123,8 +125,15 @@ class Table(object):
         of the .overflow_modes.  None will defer handling to the renderer class
         used for this table.  `clip` will shorten wide strings.  `wrap` will
         continue long lines on the next row affecting the entire table output.
-        Note that `overflow` can be set in the column specification as well,
+        `preformatted` is used to ensure the columns width always fits the
+        contents even if it requires the table to expand beyond the requested
+        width.
+
+        Note that .overflow can be set in the column specification as well,
         which will take precedence over this setting.
+
+        Setting .justify to True will evenly distribute extra column space
+        so the table fills the requested width.
         """
         if clip is not None:
             warnings.warn('clip is deprecated, use overflow=clip',
@@ -133,7 +142,7 @@ class Table(object):
                 raise TypeError('`clip` and `overflow` are mutually exclusive')
             elif clip:
                 overflow = 'clip'
-        if overflow not in self.overflow_modes:
+        if overflow is not None and overflow not in self.overflow_modes:
             raise TypeError("Invalid overflow mode: %s (choices: %s)" % (
                 overflow, ', '.join(map(str, self.overflow_modes))))
         self.overflow = overflow
@@ -169,6 +178,8 @@ class Table(object):
             self.column_align = column_align
         if title_align is not None:
             self.title_align = title_align
+        if justify is not None:
+            self.justify = justify
 
     def __enter__(self):
         return self
@@ -233,18 +244,17 @@ class Table(object):
         desc = 'Overrides for table render settings.' if desc is None else desc
         group = parser.add_argument_group(title, description=desc)
         if 'overflow' not in excludes:
-            choices = [x for x in cls.overflow_modes if x is not None]
-            group.add_argument('--overflow', choices=choices,
+            group.add_argument('--overflow', choices=cls.overflow_modes,
                                help='Override the default overflow behavior.')
         if 'table_width' not in excludes:
             group.add_argument('--table-width', type=int, metavar='COLS',
                                help='Specify the table width in columns.')
-        if 'table_padding' not in excludes:
-            group.add_argument('--table-padding', type=int, metavar='COLS',
+        if 'column_padding' not in excludes:
+            group.add_argument('--column-padding', type=int, metavar='COLS',
                                help='Specify whitespace padding for each '
                                'table column in characters.')
-        if 'table_align' not in excludes:
-            group.add_argument('--table-align', metavar='JUSTIFY',
+        if 'column_align' not in excludes:
+            group.add_argument('--column-align', metavar='JUSTIFY',
                                choices={'left', 'center', 'right'},
                                help='Table column justification.')
 
@@ -254,10 +264,10 @@ class Table(object):
                 opts['overflow'] = ns.overflow
             if ns.table_width is not None:
                 opts['width'] = ns.table_width
-            if ns.table_padding is not None:
-                opts['column_padding'] = ns.table_padding
-            if ns.table_align:
-                opts['column_align'] = ns.table_align
+            if ns.column_padding is not None:
+                opts['column_padding'] = ns.column_padding
+            if ns.column_align:
+                opts['column_align'] = ns.column_align
             return opts
         return ns2table
 
@@ -411,7 +421,7 @@ class TableRenderer(object):
     definition. """
 
     name = None
-    overflow_default = None
+    overflow_default = 'preformatted'
     linebreak = beststr('—', '-')
     title_tpl = '\n<b>{:vtml}</b>\n'
     header_tpl = '<reverse>{:vtml}</reverse>'
@@ -506,7 +516,7 @@ class TableRenderer(object):
         for x in ('file', 'overflow', 'cliptext', 'flex', 'width', 'title',
                   'title_align', 'max_render_prefill', 'max_render_delay',
                   'min_render_prefill', 'column_mask', 'hide_header',
-                  'align_rows'):
+                  'align_rows', 'justify'):
             setattr(self, x, getattr(table, x))
         if self.width is None:
             self.width = shutil.get_terminal_size()[0] \
@@ -609,11 +619,12 @@ class TableRenderer(object):
 
     def print(self, data):
         if not self.headers_drawn:
-            if self.title:
-                self.print_title(self.cell_format(self.title))
-            if not self.hide_header and any(self.headers):
-                headers = [self.cell_format(x or '') for x in self.headers]
-                self.print_headers(headers)
+            if not self.hide_header:
+                if self.title:
+                    self.print_title(self.cell_format(self.title))
+                if any(self.headers):
+                    self.print_headers([self.cell_format(x or '')
+                                        for x in self.headers])
             self.headers_drawn = True
         self.print_rendered(self.render_data(data))
 
@@ -629,8 +640,10 @@ class TableRenderer(object):
             overflower = lambda x: [x.clip(width, self.cliptext)]
         elif overflow == 'wrap':
             overflower = lambda x: x.wrap(width)
+        elif overflow == 'preformatted':
+            overflower = lambda x: x.split('\n')
         else:
-            overflower = lambda x: [x]
+            raise RuntimeError("Unexpected overflow mode: %s" % (overflow,))
         align = self.get_aligner(alignment, width)
         pad = self.get_aligner('center', width + padding)
         return lambda value: [pad(align(x)) for x in overflower(value)]
@@ -677,30 +690,34 @@ class TableRenderer(object):
         """ Convert the colspec into absolute col widths. The sample data
         should be already rendered if used in conjunction with a Table. """
         remaining = self.usable_width
-        spec = [x['width'] for x in self.colspec]
+        widths = [x['width'] for x in self.colspec]
+        preformatted = [i for i, x in enumerate(self.colspec)
+                        if x['overflow'] == 'preformatted']
         unspec = []
-        for i, width in enumerate(spec):
+        for i, width in enumerate(widths):
             fixed_width = self.width_normalize(width)
             if fixed_width is None:
                 unspec.append(i)
             else:
-                spec[i] = fixed_width  # Maybe adjust for fractional widths.
+                widths[i] = fixed_width  # Maybe adjust for fractional widths.
                 remaining -= fixed_width
         if unspec:
             if self.flex and sample_data:
-                for i, w in self.calc_flex(sample_data, remaining, unspec):
-                    spec[i] = w
+                for i, w in self.calc_flex(sample_data, remaining, unspec,
+                                           preformatted):
+                    widths[i] = w
             else:
                 dist = self._uniform_dist(len(unspec), remaining)
                 for i, width in zip(unspec, dist):
-                    spec[i] = width
-        assert all(isinstance(x, int) for x in spec), spec  # XXX
-        return spec
+                    widths[i] = width
+        return widths
 
-    def calc_flex(self, data, max_width, cols):
-        """ Scan the entire data source returning the best width for each
-        column given the width constraint.  If some columns will clip we
-        calculate the best concession widths. """
+    def calc_flex(self, data, max_width, cols, preformatted=None):
+        """ Scan data returning the best width for each column given the
+        max_width constraint.  If some columns will overflow we calculate the
+        best concession widths. """
+        if preformatted is None:
+            preformatted = []
         colstats = []
         for i in cols:
             lengths = [len(xx) for x in data
@@ -708,20 +725,19 @@ class TableRenderer(object):
             if self.headers:
                 lengths.append(len(self.headers[i]))
             lengths.append(self.width_normalize(self.colspec[i]['minwidth']))
-            assert all(isinstance(x, int) for x in lengths), lengths  # XXX
             counts = collections.Counter(lengths)
             colstats.append({
                 "column": i,
+                "preformatted": i in preformatted,
                 "counts": counts,
                 "offt": max(lengths),
                 "chop_mass": 0,
                 "chop_count": 0,
                 "total_mass": sum(a * b for a, b in counts.items())
             })
-        if self.overflow is not None:
-            self.adjust_widths(max_width, colstats)
+        self.adjust_widths(max_width, colstats)
         required = sum(x['offt'] for x in colstats)
-        if required < max_width:
+        if required < max_width and self.justify:
             # Fill remaining space proportionately.
             remaining = max_width
             for x in colstats:
@@ -739,18 +755,25 @@ class TableRenderer(object):
         mass that will be clipped when each column should be narrowed.  The
         actual score for clipping is based on percentage of total character
         mass, which is the total number of characters in the column. """
+        adj_colstats = []
+        for x in colstats:
+            if not x['preformatted']:
+                adj_colstats.append(x)
+            else:
+                max_width -= x['offt']
         next_score = lambda x: (x['counts'][x['offt']] + x['chop_mass'] +
                                 x['chop_count']) / x['total_mass']
-        cur_width = lambda: sum(x['offt'] for x in colstats)
+        cur_width = lambda: sum(x['offt'] for x in adj_colstats)
         min_width = lambda x: self.width_normalize(
             self.colspec[x['column']]['minwidth'])
         while cur_width() > max_width:
-            nextaffects = [(next_score(x), i) for i, x in enumerate(colstats)
+            nextaffects = [(next_score(x), i)
+                           for i, x in enumerate(adj_colstats)
                            if x['offt'] > min_width(x)]
             if not nextaffects:
                 break  # All columns are as small as they can get.
             nextaffects.sort()
-            chop = colstats[nextaffects[0][1]]
+            chop = adj_colstats[nextaffects[0][1]]
             chop['chop_count'] += chop['counts'][chop['offt']]
             chop['chop_mass'] += chop['chop_count']
             chop['offt'] -= 1
@@ -760,7 +783,6 @@ class PlainTableRenderer(TableRenderer):
     """ Render output without any vt100 codes. """
 
     name = 'plain'
-    overflow_default = None
 
     def cell_format(self, value):
         return vtmlrender(value, plain=True)
@@ -777,7 +799,7 @@ class TerminalTableRenderer(TableRenderer):
     the most human friendly output when on a terminal device. """
 
     name = 'terminal'
-    overflow_default = 'wrap'
+    overflow_default = 'clip'
 
 Table.register_renderer(TerminalTableRenderer)
 

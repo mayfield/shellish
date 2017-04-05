@@ -4,12 +4,16 @@
 ## [Unreleased] - unreleased
 ### Fixed
 - Nested pager usage would cause various problems
-- Defer SIGPIPE signal handling when paging.
 
 ### Changed
 - `Table(clip=True` is now controlled by the **overflow** option, a la.
   `Table(overflow='clip')`.
-- Refactored VTML -> VTMLBuffer.  Bigger API, more features..
+- Refactored VTML -> VTMLBuffer.  Bigger API, more features (See Added).
+- Changes to arguments produced by `Command.add_table_arguments`:
+   1. `--table-padding` renamed to `--column-padding`
+   2. `--table-align` renamed to `--column-align`
+- Support preserving text formatting and width in table columns with
+  `overflow='preformatted'`.
 
 ### Added
 - Support for embedding VTML `'{:vtml}'.format(vtmlbuffer_object)`.  Produces
@@ -19,6 +23,9 @@
   in-place add (foo += bar) would produce a new object;  Now it extends
   the left-operand.  The right-hand add adds support for adding VTMLBuffer
   to a `str` object, eg. `a = 'foo' + VTMLBuffer('bar')`
+- Added str-like methods to `VTMLBuffer`: startswith, endswith, __contains__,
+  split.
+- Added textwrap.wrap style text wrapper at `VTMLBuffer.wrap`.
   
 
 ## [4.3] - 2017-02-25

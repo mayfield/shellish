@@ -8,8 +8,9 @@ import unittest
 from shellish import layout as L
 
 
-def calc_table(*columns, width=100, data=None, flex=False):
-    t = L.Table(columns=columns, width=width, flex=flex, column_padding=0)
+def calc_table(*columns, width=100, data=None, flex=False, **kwargs):
+    t = L.Table(columns=columns, width=width, flex=flex, column_padding=0,
+                **kwargs)
     return t.make_renderer(data or []).widths
 
 
@@ -370,6 +371,23 @@ class TableCalcs(unittest.TestCase):
             for ii in range(151):
                 d = dist(None, i, ii)
                 self.assertEqual(sum(d), ii, (i, ii, d))
+
+    def test_multiline_flex(self):
+        data = [('aaa\naaaaaa', 'aaaaaa')]
+        widths = calc_table(None, None, flex=True, data=data, width=12)
+        self.assertListEqual(widths, [6, 6])
+
+    def test_multiline_preformatted(self):
+        data = [('aaa\naaaaaa', 'aaaaaa')]
+        widths = calc_table({"overflow": "preformatted"}, {"overflow": "wrap"},
+                            flex=True, data=data, width=10)
+        self.assertListEqual(widths, [6, 4])
+        widths = calc_table({"overflow": "preformatted"}, {"overflow": "clip"},
+                            flex=True, data=data, width=10)
+        self.assertListEqual(widths, [6, 4])
+        widths = calc_table({"overflow": "preformatted"}, {"overflow": "wrap"},
+                            flex=True, data=data, width=6)
+        self.assertListEqual(widths, [6, 1])
 
 
 class TableArgGroup(unittest.TestCase):
