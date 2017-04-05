@@ -107,35 +107,108 @@ class ShellishHelpFormatter(argparse.HelpFormatter):
         return VTMLBuffer('').join(x for x in parts
                           if x not in (None, argparse.SUPPRESS))
 
-    def _get_default_metavar_for_positional(self, action):
+    def _get_type_label(self, typeattr):
+        if isinstance(typeattr, argparse.FileType) or typeattr is open:
+            return 'file'
+        if hasattr(typeattr, '__name__'):
+            name = typeattr.__name__
+            if name != '<lambda>':
+                return name
+
+    def _get_default_metavar_for_optional(self, action):
         if action.type is None:
             return 'STR'
-        if not isinstance(action.type, type):
-            return str(action.type)
-        return action.type.__name__.upper()
+        label = self._get_type_label(action.type)
+        if label is not None:
+            return label.upper()
+        return 'VALUE'
 
-    _get_default_metavar_for_optional = _get_default_metavar_for_positional
+    def _get_default_metavar_for_positional(self, action):
+        if action.dest is argparse.SUPPRESS:
+            if isinstance(action, argparse._SubParsersAction):
+                return 'SUBPARSER'
+            raise RuntimeError("No valid metavar detected for: %r" % action)
+        return action.dest.upper()
 
     def _format_action_invocation(self, action):
-        if not action.option_strings:
-            default = self._get_default_metavar_for_positional(action)
-            metavar, = self._metavar_formatter(action, default)(1)
-            return metavar
-        else:
-            options = ', '.join('<b><blue>%s</blue></b>' % x
-                                for x in action.option_strings)
-            if action.nargs == 0:
-                return options
+        args = None
+        if not action.option_strings:  # positional
+            if action.metavar is None:
+                options = [self._get_default_metavar_for_positional(action)]
+            elif action.metavar is not argparse.SUPPRESS:
+                options = [action.metavar]
             else:
+                raise NotImplementedError()
+        else:
+            options = action.option_strings
+            if action.nargs != 0:
                 metavar = self._get_default_metavar_for_optional(action)
-                args_string = self._format_args(action, metavar)
-                return '%s %s' % (options, args_string)
+                args = self._format_args(action, metavar)
+        res = ', '.join('<b><blue>%s</blue></b>' % x for x in options)
+        return ' '.join((res, args)) if args else res
 
-    def _format_action_table(self, action):
-        action_header = self._format_action_invocation(action)
+    def _metavar_formatter(self, action, default_metavar):
+        if action.metavar is not None:
+            result = action.metavar
+        else:
+            result = default_metavar
+
+        def format(tuple_size):
+            if isinstance(result, tuple):
+                return result
+            else:
+                return (result, ) * tuple_size
+        return format
+
+    def _format_action_table(self, action, terse=False):
         indent = NBSP * self._current_indent
         pad = NBSP * 2
-        left_col = [action_header]
+        is_subparser = isinstance(action, argparse._SubParsersAction)
+
+        left_col = [self._format_action_invocation(action)]
+        if action.required:
+            left_col[-1] += ' <b><i>(required)</i></b>'
+
+        if action.default not in (argparse.SUPPRESS, None) and \
+           action.nargs != 0:
+            if isinstance(action.default, io.IOBase):
+                default = action.default.name
+            else:
+                default = action.default
+            left_col.append(pad + 'default: <b>%s</b>' % (default,))
+
+        if not terse and not is_subparser:
+            if isinstance(action.nargs, int):
+                arg_count = action.nargs
+            else:
+                arg_count = {
+                    argparse.OPTIONAL: 'optional',
+                    argparse.ZERO_OR_MORE: 'zero or more',
+                    argparse.ONE_OR_MORE: 'one or more',
+                    argparse.REMAINDER: 'remainder',
+                }.get(action.nargs)
+            if arg_count:
+                left_col.append(pad + 'count: <b>%s</b>' % arg_count)
+            label = self._get_type_label(action.type)
+            if label is None:
+                if isinstance(action, argparse._StoreConstAction):
+                    label = 'flag'
+            if label:
+                left_col.append(pad + 'type: <b>%s</b>' % label)
+            if action.choices:
+                if len(action.choices) < 5:
+                    choices = ', '.join('<b>%s</b>' % x
+                                        for x in action.choices)
+                    left_col.append(pad + 'choices: {%s}' % choices)
+                else:
+                    left_col.append(pad + 'choices:')
+                    for x in action.choices:
+                        left_col.append((pad * 3) + '<b>%s</b>' % x)
+            if getattr(action, 'env', None):
+                left_col.append(pad + 'env: <b>%s</b>' % action.env)
+        left_col = [indent + x for x in left_col]
+
+        # Perform optional substitutions on help text.
         if action.help and action.help is not HELP_SENTINEL:
             params = dict(vars(action), prog=self._prog)
             for name in list(params):
@@ -144,39 +217,18 @@ class ShellishHelpFormatter(argparse.HelpFormatter):
             for name in list(params):
                 if hasattr(params[name], '__name__'):
                     params[name] = params[name].__name__
-            if '%(default)' not in action.help and \
-               action.default not in (argparse.SUPPRESS, None):
-                if action.option_strings and action.nargs != 0:
-                    if isinstance(action.default, io.IOBase):
-                        default = action.default.name
-                    else:
-                        default = action.default
-                    left_col.append(pad + 'Default: <b>%s</b>' % (default,))
             if params.get('choices') is not None:
                 choices_str = ', '.join([str(c) for c in params['choices']])
                 params['choices'] = choices_str
-            if action.type:
-                left_col.append(pad + 'Type: <b>%s</b>' % action.type.__name__)
-            if action.nargs:
-                left_col.append(pad + 'Arg count: <b>%s</b>' % action.nargs)
-            if action.choices:
-                if len(action.choices) < 5:
-                    choices = ', '.join('<b>%s</b>' % x
-                                        for x in action.choices)
-                    left_col.append(pad + 'Choices: {%s}' % choices)
-                else:
-                    left_col.append(pad + 'Choices:')
-                    for x in action.choices:
-                        left_col.append((pad * 3) + '<b>%s</b>' % x)
-            if getattr(action, 'env', None):
-                left_col.append(pad + 'Env: <b>%s</b>' % action.env)
             help_text = action.help % params
         else:
             help_text = ''
-        left_col = [indent + x for x in left_col]
+
         feed = [('\n'.join(left_col), help_text)]
+
         for subaction in self._iter_indented_subactions(action):
-            feed.extend(self._format_action_table(subaction))
+            feed.extend(self._format_action_table(subaction, terse=True))
+
         return feed
 
     def add_table(self, actions):
