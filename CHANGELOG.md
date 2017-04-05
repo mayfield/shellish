@@ -14,6 +14,7 @@
    2. `--table-align` renamed to `--column-align`
 - Support preserving text formatting and width in table columns with
   `overflow='preformatted'`.
+- Redesigned help output using Table.
 
 ### Added
 - Support for embedding VTML `'{:vtml}'.format(vtmlbuffer_object)`.  Produces
@@ -26,6 +27,7 @@
 - Added str-like methods to `VTMLBuffer`: startswith, endswith, __contains__,
   split.
 - Added textwrap.wrap style text wrapper at `VTMLBuffer.wrap`.
+- Table `justify` option to turn off full width usage of screen.
   
 
 ## [4.3] - 2017-02-25
