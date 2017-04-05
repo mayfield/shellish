@@ -126,8 +126,9 @@ class ShellishHelpFormatter(argparse.HelpFormatter):
     def _get_default_metavar_for_positional(self, action):
         if action.dest is argparse.SUPPRESS:
             if isinstance(action, argparse._SubParsersAction):
-                return 'SUBPARSER'
-            raise RuntimeError("No valid metavar detected for: %r" % action)
+                return action.metavar or 'SUBCOMMAND'
+            else:
+                raise RuntimeError("Can not produce metavar for: %r" % action)
         return action.dest.upper()
 
     def _format_action_invocation(self, action):
@@ -164,11 +165,13 @@ class ShellishHelpFormatter(argparse.HelpFormatter):
         indent = NBSP * self._current_indent
         pad = NBSP * 2
         is_subparser = isinstance(action, argparse._SubParsersAction)
-
-        left_col = [self._format_action_invocation(action)]
+        if is_subparser:
+            sub_name = self._get_default_metavar_for_positional(action)
+            left_col = ["<b>%s</b>" % sub_name]
+        else:
+            left_col = [self._format_action_invocation(action)]
         if action.required:
             left_col[-1] += ' <b><i>(required)</i></b>'
-
         if action.default not in (argparse.SUPPRESS, None) and \
            action.nargs != 0:
             if isinstance(action.default, io.IOBase):
@@ -176,7 +179,6 @@ class ShellishHelpFormatter(argparse.HelpFormatter):
             else:
                 default = action.default
             left_col.append(pad + 'default: <b>%s</b>' % (default,))
-
         if not terse and not is_subparser:
             if isinstance(action.nargs, int):
                 arg_count = action.nargs
@@ -207,7 +209,6 @@ class ShellishHelpFormatter(argparse.HelpFormatter):
             if getattr(action, 'env', None):
                 left_col.append(pad + 'env: <b>%s</b>' % action.env)
         left_col = [indent + x for x in left_col]
-
         # Perform optional substitutions on help text.
         if action.help and action.help is not HELP_SENTINEL:
             params = dict(vars(action), prog=self._prog)
@@ -223,12 +224,9 @@ class ShellishHelpFormatter(argparse.HelpFormatter):
             help_text = action.help % params
         else:
             help_text = ''
-
         feed = [('\n'.join(left_col), help_text)]
-
         for subaction in self._iter_indented_subactions(action):
             feed.extend(self._format_action_table(subaction, terse=True))
-
         return feed
 
     def add_table(self, actions):
