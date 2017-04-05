@@ -40,7 +40,7 @@ class Command(eventing.Eventer):
     desc = None
     use_pager = False
     ArgumentParser = supplement.ShellishParser
-    ArgumentFormatter = supplement.VTMLHelpFormatter
+    ArgumentFormatter = supplement.ShellishHelpFormatter
     Session = session.Session
     completion_excludes = {'--help'}
     arg_label_fmt = '__command[%d]__'
@@ -328,8 +328,8 @@ class Command(eventing.Eventer):
                 fulldesc = self.desc
         else:
             fulldesc = self.title
-        return self.ArgumentParser(self, description=fulldesc,
-                                   formatter_class=self.ArgumentFormatter)
+        return self.ArgumentParser(command=self, prog=self.name,
+                                   description=fulldesc)
 
     def attach_session(self):
         """ Create a session and inject it as context for this command and any

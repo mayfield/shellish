@@ -629,7 +629,7 @@ class TableRenderer(object):
         self.print_rendered(self.render_data(data))
 
     def print_linebreak(self):
-        print(self.linebreak * self.width, file=self.file)
+        print(self.linebreak * self.viewable_width, file=self.file)
 
     def make_formatter(self, width, padding, alignment, overflow=None):
         """ Create formatter function that factors the width and alignment
@@ -675,6 +675,12 @@ class TableRenderer(object):
         """ The available combined character width when all padding is
         removed. """
         return self.width - sum(x['padding'] for x in self.colspec)
+
+    @property
+    def viewable_width(self):
+        """ The available combined character width when all padding is
+        removed. """
+        return sum(self.widths) + sum(x['padding'] for x in self.colspec)
 
     def width_normalize(self, width):
         """ Handle a width style, which can be a fractional number

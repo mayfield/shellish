@@ -8,9 +8,9 @@ import os
 import re
 import shutil
 import sys
-import textwrap
 import warnings
-from .. import rendering, paging
+from .. import paging, layout
+from ..rendering import vtmlrender, VTMLBuffer
 
 
 class HelpSentinel(str):
@@ -19,21 +19,205 @@ class HelpSentinel(str):
         return 1
 
 HELP_SENTINEL = HelpSentinel()
+NBSP = ' '  # U+00A0
+
+
+class ShellishHelpFormatter(argparse.HelpFormatter):
+
+    hardline = re.compile('\n\s*\n+')
+    max_width = 100
+
+    class _Section(argparse.HelpFormatter._Section):
+
+        def format_help(self):
+            if self.parent is not None:
+                self.formatter._indent()
+            join = self.formatter._join_parts
+            item_help = join([func(*args) for func, args in self.items])
+            if self.parent is not None:
+                self.formatter._dedent()
+            if not item_help:
+                return ''
+            if self.heading in (argparse.SUPPRESS, None):
+                heading_bar = ''
+                return item_help
+            else:
+                current_indent = self.formatter._current_indent
+                heading = '%*s%s' % (current_indent, '', self.heading.upper())
+                heading_bar = vtmlrender('\n<u>%s</u>:\n\n' % heading)
+            return join([heading_bar, item_help])
+
+    def __init__(self, prog, max_width=None, width=None, **kwargs):
+        if width is None:
+            if max_width is None:
+                max_width = self.max_width
+            width = min(shutil.get_terminal_size()[0] - 2, max_width)
+        super().__init__(prog, width=width, **kwargs)
+
+    def format_help(self):
+        return self._root_section.format_help()
+
+    def _fill_text(self, text, width=None, indent=None):
+        r""" Reflow text but preserve hardlines (\n\n). """
+        assert isinstance(text, str)
+        paragraphs = self.hardline.split(text)
+        if indent is None:
+            indent = NBSP * self._current_indent
+        assert isinstance(indent, str)
+        if width is None:
+            width = self._width - len(indent)
+        results = []
+        nl = VTMLBuffer('\n')
+        blankline = nl * 2
+        indent = VTMLBuffer(indent)
+        for x_text in paragraphs:
+            x_text = self._whitespace_matcher.sub(' ', x_text).strip()
+            results.append(nl.join((indent + x)
+                           for x in vtmlrender(x_text).wrap(width)))
+        return blankline.join(results)
+
+    def _format_text(self, text):
+        if '%(prog)' in text:
+            text = text % dict(prog=self._prog)
+        return self._fill_text(text) + '\n\n'
+
+    def _get_help_string(self, action):
+        """ Adopted from ArgumentDefaultsHelpFormatter. """
+        raise NotImplementedError('')
+        help = action.help
+        prefix = ''
+        if getattr(action, 'env', None):
+            prefix = '(<cyan>%s</cyan>) ' % action.env
+        if '%(default)' not in help and \
+           action.default not in (argparse.SUPPRESS, None):
+            if action.option_strings and action.nargs != 0:
+                if isinstance(action.default, io.IOBase):
+                    default = action.default.name
+                else:
+                    default = action.default
+                prefix = '[<b>%s</b>] %s ' % (default, prefix)
+        return prefix, help
+
+    def _format_usage(self, *args, **kwargs):
+        usage = super()._format_usage(*args, **kwargs)
+        return VTMLBuffer('\n').join(vtmlrender('<red>%s</red>' % x)
+                                     for x in usage.split('\n'))
+
+    def _join_parts(self, parts):
+        return VTMLBuffer('').join(x for x in parts
+                          if x not in (None, argparse.SUPPRESS))
+
+    def _get_default_metavar_for_positional(self, action):
+        if action.type is None:
+            return 'STR'
+        if not isinstance(action.type, type):
+            return str(action.type)
+        return action.type.__name__.upper()
+
+    _get_default_metavar_for_optional = _get_default_metavar_for_positional
+
+    def _format_action_invocation(self, action):
+        if not action.option_strings:
+            default = self._get_default_metavar_for_positional(action)
+            metavar, = self._metavar_formatter(action, default)(1)
+            return metavar
+        else:
+            options = ', '.join('<b><blue>%s</blue></b>' % x
+                                for x in action.option_strings)
+            if action.nargs == 0:
+                return options
+            else:
+                metavar = self._get_default_metavar_for_optional(action)
+                args_string = self._format_args(action, metavar)
+                return '%s %s' % (options, args_string)
+
+    def _format_action_table(self, action):
+        action_header = self._format_action_invocation(action)
+        indent = NBSP * self._current_indent
+        pad = NBSP * 2
+        left_col = [action_header]
+        if action.help and action.help is not HELP_SENTINEL:
+            params = dict(vars(action), prog=self._prog)
+            for name in list(params):
+                if params[name] is argparse.SUPPRESS:
+                    del params[name]
+            for name in list(params):
+                if hasattr(params[name], '__name__'):
+                    params[name] = params[name].__name__
+            if '%(default)' not in action.help and \
+               action.default not in (argparse.SUPPRESS, None):
+                if action.option_strings and action.nargs != 0:
+                    if isinstance(action.default, io.IOBase):
+                        default = action.default.name
+                    else:
+                        default = action.default
+                    left_col.append(pad + 'Default: <b>%s</b>' % (default,))
+            if params.get('choices') is not None:
+                choices_str = ', '.join([str(c) for c in params['choices']])
+                params['choices'] = choices_str
+            if action.type:
+                left_col.append(pad + 'Type: <b>%s</b>' % action.type.__name__)
+            if action.nargs:
+                left_col.append(pad + 'Arg count: <b>%s</b>' % action.nargs)
+            if action.choices:
+                if len(action.choices) < 5:
+                    choices = ', '.join('<b>%s</b>' % x
+                                        for x in action.choices)
+                    left_col.append(pad + 'Choices: {%s}' % choices)
+                else:
+                    left_col.append(pad + 'Choices:')
+                    for x in action.choices:
+                        left_col.append((pad * 3) + '<b>%s</b>' % x)
+            if getattr(action, 'env', None):
+                left_col.append(pad + 'Env: <b>%s</b>' % action.env)
+            help_text = action.help % params
+        else:
+            help_text = ''
+        left_col = [indent + x for x in left_col]
+        feed = [('\n'.join(left_col), help_text)]
+        for subaction in self._iter_indented_subactions(action):
+            feed.extend(self._format_action_table(subaction))
+        return feed
+
+    def add_table(self, actions):
+        table_output = io.StringIO()
+        table_output.isatty = sys.stdout.isatty
+        config = {
+            "width": self._width,
+            "justify": True,
+            "overflow": 'wrap',
+            "columns": [{
+                "padding": 2,
+                "overflow": 'preformatted'
+            }, {
+                "padding": 4
+            }]
+        }
+        table = layout.Table(file=table_output, **config)
+        rows = []
+        for action in actions:
+            if action.help is argparse.SUPPRESS:
+                continue
+            rows.extend(self._format_action_table(action))
+
+        def render(data):
+            table.print(data)
+            table.close()
+            return table_output.getvalue()
+        if rows:
+            self._add_item(render, [rows])
 
 
 class ShellishParser(argparse.ArgumentParser):
 
-    env_desc = 'Environment variables can be used to set argument default ' \
-               'values.  Note that they may still be overridden by ' \
-               'supplying the argument on the command line.\n\nWhen an ' \
-               'argument has a corresponding environment variable it is ' \
-               'noted parenthetically to the right of the argument ' \
-               'description.'
+    HelpFormatter = ShellishHelpFormatter
 
-    def __init__(self, command, **kwargs):
+    def __init__(self, *args, command=None, formatter_class=None, **kwargs):
         self._env_actions = {}
         self._command = command
-        super().__init__(command.name, **kwargs)
+        if formatter_class is None:
+            formatter_class = self.HelpFormatter
+        super().__init__(*args, formatter_class=formatter_class, **kwargs)
 
     def bind_env(self, action, env):
         """ Bind an environment variable to an argument action.  The env
@@ -62,10 +246,6 @@ class ShellishParser(argparse.ArgumentParser):
             self.set_defaults(**env_defaults)
         return super().parse_known_args(*args, **kwargs)
 
-    def _get_formatter(self):
-        width = shutil.get_terminal_size()[0] - 2
-        return self.formatter_class(prog=self.prog, width=width)
-
     def format_help(self):
         formatter = self._get_formatter()
         formatter.add_usage(self.usage, self._actions,
@@ -79,25 +259,20 @@ class ShellishParser(argparse.ArgumentParser):
         else:
             title, about = self.description, None
         if title:
-            formatter.add_text('<b><u>%s</u></b>' % title)
+            formatter.add_text('<b><u>%s</u></b>\n' % title.strip())
         if about:
-            formatter.add_text(about)
-        if self._env_actions:
-            formatter.start_section('<b>environment variables</b>')
-            formatter.add_text(self.env_desc)
-            formatter.end_section()
-
-        for action_group in self._action_groups:
-            formatter.start_section('<b>%s</b>' % action_group.title)
-            formatter.add_text(action_group.description)
-            formatter.add_arguments(action_group._group_actions)
+            formatter.add_text(about.strip())
+        for group in self._action_groups:
+            formatter.start_section(group.title)
+            formatter.add_text(group.description)
+            formatter.add_table(actions=group._group_actions)
             formatter.end_section()
         formatter.add_text(self.epilog)
         return formatter.format_help()
 
     def print_help(self, *args, **kwargs):
         """ Add pager support to help output. """
-        if self._command.session.allow_pager:
+        if self._command is not None and self._command.session.allow_pager:
             desc = 'Help\: %s' % '-'.join(self.prog.split())
             pager_kwargs = self._command.get_pager_spec()
             with paging.pager_redirect(desc, **pager_kwargs):
@@ -105,113 +280,28 @@ class ShellishParser(argparse.ArgumentParser):
         else:
                 return super().print_help(*args, **kwargs)
 
+    def _print_message(self, message, file=None):
+        assert isinstance(message, VTMLBuffer)
+        if file is None:
+            file = sys.stdout
+        if not file.isatty():
+            message = message.plain()
+        print(message, end='', file=file)
+
     def add_argument(self, *args, help=HELP_SENTINEL, **kwargs):
         return super().add_argument(*args, help=help, **kwargs)
 
-
-class VTMLHelpFormatter(argparse.HelpFormatter):
-
-    hardline = re.compile('\n\s*\n')
-
-    def vtmlrender(self, string):
-        vstr = rendering.vtmlrender(string)
-        return str(vstr.plain() if not sys.stdout.isatty() else vstr)
-
-    def start_section(self, heading):
-        super().start_section(self.vtmlrender(heading))
-
-    def _fill_text(self, text, width, indent):
-        r""" Reflow text but preserve hardlines (\n\n). """
-        paragraphs = self.hardline.split(str(self.vtmlrender(text)))
-        return '\n\n'.join(textwrap.fill(x, width, initial_indent=indent,
-                                         subsequent_indent=indent)
-                           for x in paragraphs)
-
-    def _get_help_string(self, action):
-        """ Adopted from ArgumentDefaultsHelpFormatter. """
-        help = action.help
-        prefix = ''
-        if getattr(action, 'env', None):
-            prefix = '(<cyan>%s</cyan>) ' % action.env
-
-        if '%(default)' not in help and \
-           action.default not in (argparse.SUPPRESS, None):
-            if action.option_strings and action.nargs != 0:
-                if isinstance(action.default, io.IOBase):
-                    default = action.default.name
-                else:
-                    default = action.default
-                prefix = '[<b>%s</b>] %s ' % (default, prefix)
-        return prefix, help
-
-    def _format_usage(self, *args, **kwargs):
-        usage = '\n%s' % super()._format_usage(*args, **kwargs)
-        return '\n'.join(self.vtmlrender('<red>%s</red>' % x)
-                         for x in usage.split('\n'))
-
-    def _format_action(self, action):
-        # determine the required width and the entry label
-        help_position = min(self._action_max_length + 2,
-                            self._max_help_position)
-        help_width = max(self._width - help_position, 11)
-        action_width = help_position - self._current_indent - 2
-        action_header = self._format_action_invocation(action)
-
-        # no help; start on same line and add a final newline
-        if not action.help:
-            tup = self._current_indent, '', action_header
-            action_header = '%*s%s\n' % tup
-
-        # short action name; start on the same line and pad two spaces
-        elif len(action_header) <= action_width:
-            tup = self._current_indent, '', action_width, action_header
-            action_header = '%*s%-*s  ' % tup
-            indent_first = 0
-
-        # long action name; start on the next line
-        else:
-            tup = self._current_indent, '', action_header
-            action_header = '%*s%s\n' % tup
-            indent_first = help_position
-
-        # collect the pieces of the action help
-        parts = [action_header]
-
-        # if there was help for the action, add lines of help text
-        if action.help:
-            help_prefix, help_text = self._expand_help(action)
-            help_lines = [self.vtmlrender('<blue>%s</blue>' % x)
-                          for x in self._split_lines(help_text, help_width)]
-            if not help_lines:
-                help_lines = ['']
-            parts.append('%*s%s\n' % (indent_first, self.vtmlrender(help_prefix), help_lines[0]))
-            for line in help_lines[1:]:
-                parts.append('%*s%s\n' % (help_position, '', line))
-
-        # or add a newline if the description doesn't end with one
-        elif not action_header.endswith('\n'):
-            parts.append('\n')
-
-        # if there are any sub-actions, add their help as well
-        for subaction in self._iter_indented_subactions(action):
-            parts.append(self._format_action(subaction))
-
-        # return a single string
-        return self._join_parts(parts)
-
-    def _expand_help(self, action):
-        params = dict(vars(action), prog=self._prog)
-        for name in list(params):
-            if params[name] is argparse.SUPPRESS:
-                del params[name]
-        for name in list(params):
-            if hasattr(params[name], '__name__'):
-                params[name] = params[name].__name__
-        if params.get('choices') is not None:
-            choices_str = ', '.join([str(c) for c in params['choices']])
-            params['choices'] = choices_str
-        prefix, text = self._get_help_string(action)
-        return prefix, (text % params)
+    def add_subparsers(self, prog=None, **kwargs):
+        """ Supplement a proper `prog` keyword argument for the subprocessor.
+        The superclass technique for getting the `prog` value breaks because
+        of our VT100 escape codes injected by `format_help`. """
+        if prog is None:
+            # Use a non-shellish help formatter to avoid vt100 codes.
+            f = argparse.HelpFormatter(prog=self.prog)
+            f.add_usage(self.usage, self._get_positional_actions(),
+                        self._mutually_exclusive_groups, '')
+            prog = f.format_help().strip()
+        return super().add_subparsers(prog=prog, **kwargs)
 
 
 class SafeFileContext(object):
