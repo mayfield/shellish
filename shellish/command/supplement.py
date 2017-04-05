@@ -281,12 +281,13 @@ class ShellishParser(argparse.ArgumentParser):
                 return super().print_help(*args, **kwargs)
 
     def _print_message(self, message, file=None):
-        assert isinstance(message, VTMLBuffer)
+        if not message:
+            return
         if file is None:
-            file = sys.stdout
-        if not file.isatty():
+            file = sys.stderr
+        if isinstance(message, VTMLBuffer) and not file.isatty():
             message = message.plain()
-        print(message, end='', file=file)
+        file.write(str(message))
 
     def add_argument(self, *args, help=HELP_SENTINEL, **kwargs):
         return super().add_argument(*args, help=help, **kwargs)
