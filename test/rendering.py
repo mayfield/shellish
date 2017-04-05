@@ -416,6 +416,37 @@ class VTMLBufferTests(unittest.TestCase):
         self.assertNotIn('ABCD', abc)
         self.assertNotIn('abcd', abc)
 
+    def test_split_maxsplit(self):
+        ref = 'abc ABC xyz XYZ'
+        vs = R.vtmlrender(ref)
+        self.assertListEqual(vs.split(), ref.split(' '))
+        for i in range(6):
+            with self.subTest(i):
+                self.assertListEqual(vs.split(maxsplit=i), ref.split(' ', i))
+
+    def test_split_leading(self):
+        for ref in (' ', ' abc', '  ', '  abc'):
+            vs = R.vtmlrender(ref)
+            self.assertListEqual(vs.split(), ref.split(' '))
+
+    def test_split_trailing(self):
+        for ref in ('abc ', 'abc  ', ' abc ', '  abc  '):
+            vs = R.vtmlrender(ref)
+            self.assertListEqual(vs.split(), ref.split(' '))
+
+    def test_split_notfound(self):
+        ref = 'abc'
+        vs = R.vtmlrender(ref)
+        self.assertListEqual(vs.split('D'), ref.split('D'))
+        self.assertListEqual(vs.split('abcd'), ref.split('abcd'))
+        self.assertListEqual(vs.split('bcd'), ref.split('bcd'))
+
+    def test_split_multichar(self):
+        for ref in ('abcGAPABC', 'abcGAP', 'GAPabc', 'abGAPABGAP', 'aGAPbGAPc'):
+            vs = R.vtmlrender(ref)
+            self.assertListEqual(vs.split('GAP'), ref.split('GAP'))
+
+
 class HTMLConversion(unittest.TestCase):
 
     a_format = '<blue><u>%s</u></blue>'

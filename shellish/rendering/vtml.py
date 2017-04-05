@@ -529,6 +529,27 @@ class VTMLBuffer(object):
     def endswith(self, other):
         return self.text().endswith(other)
 
+    def split(self, sep=' ', maxsplit=None):
+        if not sep:
+            raise ValueError("empty separator")
+        splits = []
+        pos = 0
+        text = self.text()
+        sep_len = len(sep)
+        while maxsplit is None or len(splits) < maxsplit:
+            try:
+                end = text.index(sep, pos)
+            except ValueError:
+                break
+            splits.append((pos, end))
+            pos = end + sep_len
+        splits.append((pos, None))
+        return [self[start:end] for start, end in splits]
+        if splits:
+            return [self[start:end] for start, end in splits]
+        else:
+            return [self.copy()]
+
 
 def vtmlrender(vtmarkup, plain=None, strict=False, vtmlparser=VTMLParser()):
     """ Look for vt100 markup and render vt opcodes into a VTMLBuffer. """
