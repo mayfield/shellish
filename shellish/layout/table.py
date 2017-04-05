@@ -244,17 +244,20 @@ class Table(object):
         desc = 'Overrides for table render settings.' if desc is None else desc
         group = parser.add_argument_group(title, description=desc)
         if 'overflow' not in excludes:
-            group.add_argument('--overflow', choices=cls.overflow_modes,
+            group.add_argument('%soverflow' % prefix,
+                               choices=cls.overflow_modes,
                                help='Override the default overflow behavior.')
         if 'table_width' not in excludes:
-            group.add_argument('--table-width', type=int, metavar='COLS',
+            group.add_argument('%stable-width' % prefix, type=int,
+                               metavar='COLS',
                                help='Specify the table width in columns.')
         if 'column_padding' not in excludes:
-            group.add_argument('--column-padding', type=int, metavar='COLS',
+            group.add_argument('%scolumn-padding' % prefix, type=int,
+                               metavar='COLS',
                                help='Specify whitespace padding for each '
                                'table column in characters.')
         if 'column_align' not in excludes:
-            group.add_argument('--column-align', metavar='JUSTIFY',
+            group.add_argument('%scolumn-align' % prefix, metavar='JUSTIFY',
                                choices={'left', 'center', 'right'},
                                help='Table column justification.')
 
