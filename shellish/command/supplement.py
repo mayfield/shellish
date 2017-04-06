@@ -192,9 +192,6 @@ class ShellishHelpFormatter(argparse.HelpFormatter):
             if arg_count:
                 left_col.append(pad + 'count: <b>%s</b>' % arg_count)
             label = self._get_type_label(action.type)
-            if label is None:
-                if isinstance(action, argparse._StoreConstAction):
-                    label = 'flag'
             if label:
                 left_col.append(pad + 'type: <b>%s</b>' % label)
             if action.choices:
