@@ -105,7 +105,7 @@ class ShellishHelpFormatter(argparse.HelpFormatter):
 
     def _join_parts(self, parts):
         return VTMLBuffer('').join(x for x in parts
-                          if x not in (None, argparse.SUPPRESS))
+                                   if x not in (None, argparse.SUPPRESS))
 
     def _get_type_label(self, typeattr):
         if isinstance(typeattr, argparse.FileType) or typeattr is open:

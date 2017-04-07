@@ -11,7 +11,9 @@ from shellish import layout as L
 def calc_table(*columns, width=100, data=None, flex=False, **kwargs):
     t = L.Table(columns=columns, width=width, flex=flex, column_padding=0,
                 **kwargs)
-    return t.make_renderer(data or []).widths
+    renderer = t.renderer_class(t)
+    renderer.print(data or [])
+    return renderer.widths
 
 
 def fileredir(call, *args, **kwargs):
@@ -186,17 +188,13 @@ class TableDataSupport(unittest.TestCase):
         output, t = self.table(accessors=['one', 'two', 'three'])
         t.print([{'one': 'ONE', 'two': 'TWO', 'three': 'THREE'}])
 
-    def test_columns_from_none_is_error(self):
-        output, t = self.table()
-        self.assertRaises(L.RowsNotFound, t.make_renderer)
-
     def test_columns_width_spec_only(self):
         output, t = self.table(columns=[None, None, None])
-        t.make_renderer()
+        t.renderer_class(t)
 
     def test_columns_empty_style_spec(self):
         output, t = self.table(columns=[{}, {}, {}])
-        t.make_renderer()
+        t.renderer_class(t)
 
     def test_empty_iter(self):
         output, t = self.table([None])
@@ -207,17 +205,6 @@ class TableDataSupport(unittest.TestCase):
         output, t = self.table([None])
         t.print([])
         self.assertFalse(output())
-
-    def test_zero_columns(self):
-        output, t = self.table([])
-        self.assertRaises(L.RowsNotFound, t.print, [])
-        self.assertRaises(L.RowsNotFound, t.print, [[], []])
-        self.assertRaises(L.RowsNotFound, t.print, [[], [], []])
-        output, t = self.table([])
-        self.assertRaises(L.RowsNotFound, t.print, [[], [], []])
-        self.assertRaises(L.RowsNotFound, t.print, [[], []])
-        self.assertRaises(L.RowsNotFound, t.print, [[]])
-        self.assertRaises(L.RowsNotFound, t.print, [])
 
     def test_no_double_up_tabulate(self):
         output, t = self.tabulate([['abc']])
@@ -267,10 +254,6 @@ class TableDataSupport(unittest.TestCase):
                 yield [x]
         output, t = self.tabulate(g(), header=False)
         self.assertIn('1', ''.join(output()))
-
-    def test_empty_add_footers_exc(self):
-        t = L.Table()
-        self.assertRaises(L.RowsNotFound, t.print_footer, 'foo')
 
     def test_add_footers_no_body(self):
         out, t = self.table(headers=['One'])
@@ -366,7 +349,7 @@ class TableCalcs(unittest.TestCase):
         self.assertEqual(sum(widths), 100)
 
     def test_uniform_dist(self):
-        dist = L.TableRenderer._uniform_dist
+        dist = L.VisualTableRenderer._uniform_dist
         for i in range(1, 101):
             for ii in range(151):
                 d = dist(None, i, ii)
@@ -429,7 +412,7 @@ class JSONTableRenderer(unittest.TestCase):
 
     def setUp(self):
         t = L.Table([None], renderer='json')
-        self.r = t.make_renderer([['']])
+        self.r = t.renderer_class(t)
 
     def test_make_key_snakecase(self):
         self.assertEqual(self.r.make_key('snake_case'), 'snakeCase')

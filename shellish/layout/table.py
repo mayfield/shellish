@@ -44,13 +44,6 @@ class Table(object):
     overflow_modes = 'clip', 'wrap', 'preformatted'
     justify = True
 
-    # You probably shouldn't mess with these unless you really need custom
-    # rendering performance.  Chances are you really don't and should
-    # manage your data stream more carefully first.
-    min_render_prefill = 5
-    max_render_prefill = 1000
-    max_render_delay = 2
-
     def __init__(self, columns=None, headers=None, accessors=None, width=None,
                  clip=None, overflow=None, flex=True, file=None, cliptext=None,
                  column_minwidth=None, column_padding=None, column_align=None,
@@ -372,38 +365,13 @@ class Table(object):
         else:
             return [x for i, x in enumerate(items, 1) if i in self.column_mask]
 
-    def make_renderer(self, data=None):
-        """ Consume and analyze everything we know up to this point and create
-        a renderer instance that can be used for writing rows hence forth. """
-        columns = (self.columns_def and len(self.columns_def)) or \
-                  (self.headers and len(self.headers)) or \
-                  (self.accessors_def and len(self.accessors_def))
-        if not columns:
-            if data:  # only a maybe since iterators are truthy
-                # Peek into the data stream as a last resort.
-                tmp_iter = iter(data)
-                try:
-                    peek = next(tmp_iter)
-                except StopIteration:
-                    pass
-                else:
-                    columns = len(peek)
-                    data = itertools.chain([peek], tmp_iter)
-            if not columns:
-                raise RowsNotFound()
-        accessors = self.column_mask_filter(self.make_accessors(columns))
-        colspec = self.column_mask_filter(self.create_colspec(columns))
-        headers = self.headers and self.column_mask_filter(self.headers[:])
-        return self.renderer_class(colspec, accessors, headers, self, data)
-
     def print(self, rows):
         """ Write the data to our output stream (stdout).  If the table is not
         rendered yet, we will make a renderer instance which will freeze
         state. """
-        row_iter = iter(rows)
         if not self.default_renderer:
-            self.default_renderer = self.make_renderer(row_iter)
-        self.default_renderer.print(row_iter)
+            self.default_renderer = self.renderer_class(self)
+        self.default_renderer.print(rows)
 
     def print_row(self, row):
         return self.print([row])
@@ -417,38 +385,24 @@ class Table(object):
 
 
 class TableRenderer(object):
-    """ A bundle of state for a particular table rendering job.  Each time a
-    table is to be printed to a file or the screen a new instance of this
-    object will be used to provide closure on the column spec and so forth.
-    This is essentially frozen state computed from a table instance's
-    definition. """
+    """ Interface for rendering table output to a screen, file or other data
+    exchange. """
 
     name = None
-    overflow_default = 'preformatted'
-    linebreak = beststr('—', '-')
-    title_tpl = '\n<b>{:vtml}</b>\n'
-    header_tpl = '<reverse>{:vtml}</reverse>'
-    footer_tpl = '<dim>{:vtml}</dim>'
 
-    def __init__(self, colspec=None, accessors=None, headers=None, table=None,
-                 seed=None):
+    def __init__(self, table):
         """ All calculated values required for rendering a table are kept
         here.  In theory a single Table instance can be used to render
         multiple and differing datasets in a concurrent system.  Admittedly
         this is over-engineered for a CLI suite and the result of a lazy
         Sunday. """
-        self.colspec = colspec
-        self.accessors = accessors
-        self.headers = headers
-        self.capture_table_state(table)
-        self.prerendered = None
-        self.seed = None
-        if seed:
-            self.prerendered, self.seed = self.seed_collect(seed)
-        self.widths = self.calc_widths(self.prerendered)
-        self.formatters = self.make_formatters()
+        self.colspec = None
+        self.accessors = None
+        self.headers = None
         self.headers_drawn = False
         self.footers_drawn = False
+        self.filter_pipeline = None
+        self.table = table
 
     def __enter__(self):
         return self
@@ -459,45 +413,38 @@ class TableRenderer(object):
     def close(self, exception=None):
         pass
 
-    def seed_collect(self, seed):
-        """ Collect values from the seed iterator as long as we can.  If the
-        data stream is very large or taking too long we'll stop so the UI can
-        render.  The goal is to reduce render latency but give the calc_widths
-        routine as much data as we can reasonably afford to. """
-        minfill = self.min_render_prefill
-        maxfill = self.max_render_prefill
-        maxtime = self.max_render_delay
-        seed_iter = iter(seed)
-        start = time.monotonic()
-
-        def constrained_feed():
-            for i, x in enumerate(seed_iter):
-                yield x
-                if i < minfill:
-                    continue
-                if i > maxfill or (time.monotonic() - start) >= maxtime:
-                    return
-        return list(self.render_data(constrained_feed())), seed_iter
+    def compute_style_filter(self, next_filter):
+        t = self.table
+        columns = (t.columns_def and len(t.columns_def)) or \
+                  (t.headers and len(t.headers)) or \
+                  (t.accessors_def and len(t.accessors_def))
+        data = None
+        if not columns:
+            data = (yield)
+            columns = len(data)
+        self.accessors = t.column_mask_filter(t.make_accessors(columns))
+        self.colspec = t.column_mask_filter(t.create_colspec(columns))
+        self.headers = t.headers and t.column_mask_filter(t.headers[:])
+        next(next_filter)
+        if data is not None:
+            next_filter.send(data)
+        while True:
+            next_filter.send((yield))
 
     def print_headers(self, headers):
-        lines = [VTMLBuffer('').join(x) for x in self.format_rows([headers])]
-        for line in lines:
-            print(self.cell_format(self.header_tpl.format(line)),
-                  file=self.file)
+        raise NotImplementedError()
 
     def print_title(self, title):
-        title = self.title_tpl.format(self.format_fullwidth(title))
-        print(self.cell_format(title), file=self.file)
+        raise NotImplementedError()
+
+    def print_row(self, row):
+        raise NotImplementedError()
+
+    def print_footer(self, content):
+        raise NotImplementedError()
 
     def print_footer_raw(self, raw_content):
         self.print_footer(self.cell_format(raw_content))
-
-    def print_footer(self, content):
-        row = self.format_fullwidth(content)
-        if not self.footers_drawn:
-            self.footers_drawn = True
-            self.print_linebreak()
-        print(self.cell_format(self.footer_tpl.format(row)), file=self.file)
 
     def cell_format(self, value):
         """ Subclasses should put any visual formatting specific to their
@@ -512,127 +459,137 @@ class TableRenderer(object):
         }
         return operator.methodcaller(align_funcs[alignment], width)
 
-    def capture_table_state(self, table):
-        """ Capture state from the table instance and store locally for safe
-        keeping.  This is not specifically required but helps in keeping with
-        our pseudo "frozen" nature. """
-        for x in ('file', 'overflow', 'cliptext', 'flex', 'width', 'title',
-                  'title_align', 'max_render_prefill', 'max_render_delay',
-                  'min_render_prefill', 'column_mask', 'hide_header',
-                  'align_rows', 'justify'):
-            setattr(self, x, getattr(table, x))
-        if self.width is None:
-            self.width = shutil.get_terminal_size()[0] \
-                if self.file is sys.stdout else 80
+    def render_filter(self, next_filter):
+        """ Produce formatted output from the raw data stream. """
+        next(next_filter)
+        while True:
+            data = (yield)
+            res = [self.cell_format(access(data)) for access in self.accessors]
+            next_filter.send(res)
+
+    def get_filters(self):
+        """ Coroutine based filters for render pipeline. """
+        return [
+            self.compute_style_filter,
+            self.render_filter
+        ]
+
+    def print(self, data):
+        if self.filter_pipeline is None:
+            pipeline = self.get_filters()
+            head = self.printer()
+            for fn in reversed(pipeline):
+                head = fn(head)
+            self.filter_pipeline = head
+            next(head)
+        for x in data:
+            self.filter_pipeline.send(x)
+        self.filter_pipeline.close()
+        self.filter_pipeline = None
+
+    def printer(self):
+        if not self.table.hide_header and self.table.title:
+            self.print_title(self.cell_format(self.table.title))
+        while True:
+            if not self.headers_drawn and any(self.headers):
+                self.print_headers([self.cell_format(x or '')
+                                    for x in self.headers])
+                self.headers_drawn = True
+            self.print_row((yield))
+
+
+class VisualTableRenderer(TableRenderer):
+    """ ABC used for renderers that draw visually. """
+
+    overflow_default = 'preformatted'
+    linebreak = beststr('—', '-')
+    title_tpl = '\n<b>{:vtml}</b>\n'
+    header_tpl = '<reverse>{:vtml}</reverse>'
+    footer_tpl = '<dim>{:vtml}</dim>'
+    default_width = 95
+
+    # You probably shouldn't mess with these unless you really need custom
+    # rendering performance.  Chances are you really don't and should
+    # manage your data stream more carefully first.
+    min_render_prefill = 5
+    max_render_prefill = 1000
+    max_render_delay = 2
+
+    def __init__(self, table):
+        super().__init__(table)
+        self.width = None
+        self.data_window = collections.deque(maxlen=self.max_render_prefill)
+        self.overflow = self.table.overflow
         if self.overflow is None:
             self.overflow = self.overflow_default
 
-    def render_data(self, data):
-        """ Get the data from the raw list of objects. """
-        if self.prerendered:
-            for x in self.prerendered:
-                yield x
-            self.prerendered = None
-        if self.seed:
-            data = itertools.chain(self.seed, data)
-            self.seed = None
-        for obj in data:
-            yield [self.cell_format(access(obj)) for access in self.accessors]
+    @property
+    def usable_width(self):
+        """ The available combined character width when all padding is
+        removed. """
+        return self.width - sum(x['padding'] for x in self.colspec)
 
-    def format_rows(self, rows):
+    @property
+    def viewable_width(self):
+        """ The available combined character width when all padding is
+        removed. """
+        return sum(self.widths) + sum(x['padding'] for x in self.colspec)
+
+    @property
+    def desired_width(self):
+        if self.table.width is not None:
+            return self.table.width
+        elif self.table.file not in (sys.stdout, sys.stderr):
+            return self.default_width
+        else:
+            return shutil.get_terminal_size()[0]
+
+    def print_headers(self, headers):
+        lines = [VTMLBuffer('').join(x) for x in self.format_row(headers)]
+        for line in lines:
+            print(self.cell_format(self.header_tpl.format(line)),
+                  file=self.table.file)
+
+    def print_title(self, title):
+        title = self.title_tpl.format(self.format_fullwidth(title))
+        print(self.cell_format(title), file=self.table.file)
+
+    def print_row(self, row, rstrip=True):
+        """ Format and print the pre-rendered data to the output device. """
+        line = ''.join(map(str, row))
+        print(line.rstrip() if rstrip else line, file=self.table.file)
+
+    def print_footer(self, content):
+        row = self.format_fullwidth(content)
+        if not self.footers_drawn:
+            self.footers_drawn = True
+            self.print_linebreak()
+        print(self.cell_format(self.footer_tpl.format(row)),
+              file=self.table.file)
+
+    def print_linebreak(self):
+        print(self.linebreak * self.viewable_width, file=self.table.file)
+
+    def format_row(self, row):
         """ Apply overflow, justification and padding to a row.  Returns lines
         (plural) of rendered text for the row. """
-        def expanded():
-            for items in rows:
-                assert all(isinstance(x, VTMLBuffer) for x in items)
-                raw = (fn(x) for x, fn in zip(items, self.formatters))
-                yield itertools.zip_longest(*raw)
-        aligner = self._column_pad if self.align_rows else self._column_pack
-        yield from aligner(itertools.chain.from_iterable(expanded()))
-
-    def _column_pack(self, formatted_rows):
-        """ Top-align column data irrespective of original row alignment.  E.g.
-            INPUT: [
-                ["1a", "2a"],
-                [None, "2b"],
-                ["1b", "2c"],
-                [None, "2d"]
-            ]
-            OUTPUT: [
-                ["1a", "2a"],
-                ["1b", "2b"],
-                [<blank>, "2c"],
-                [<blank>, "2d"]
-            ]
-        """
-        col_count = len(self.widths)
-        queues = [collections.deque() for _ in range(col_count)]
-        for row in formatted_rows:
-            for col, queue in zip(row, queues):
-                if col is not None:
-                    queue.append(col)
-            if all(queues):
-                yield [x.popleft() for x in queues]
-        blanks = list(map(self._get_blank_cell, range(col_count)))
-        while any(queues):
-            yield [q.popleft() if q else blank
-                   for q, blank in zip(queues, blanks)]
-
-    def _column_pad(self, formatted_rows):
-        """ Expand blank lines caused from overflow of other columns to blank
-        whitespace.  E.g.
-            INPUT: [
-                ["1a", "2a"],
-                [None, "2b"],
-                ["1b", "2c"],
-                [None, "2d"]
-            ]
-            OUTPUT: [
-                ["1a", "2a"],
-                [<blank>, "2b"],
-                ["1b", "2c"],
-                [<blank>, "2d"]
-            ]
-        """
-        for line in formatted_rows:
+        assert all(isinstance(x, VTMLBuffer) for x in row)
+        raw = (fn(x) for x, fn in zip(row, self.formatters))
+        for line in itertools.zip_longest(*raw):
             line = list(line)
             for i, col in enumerate(line):
                 if col is None:
                     line[i] = self._get_blank_cell(i)
-            yield line
+        yield line
 
     def format_fullwidth(self, value):
         """ Return a full width column. Note that the padding is inherited
         from the first cell which inherits from column_padding. """
         assert isinstance(value, VTMLBuffer)
         pad = self.colspec[0]['padding']
-        fmt = self.make_formatter(self.width - pad, pad, self.title_align)
+        fmt = self.make_formatter(self.width - pad, pad,
+                                  self.table.title_align)
         return VTMLBuffer('\n').join(fmt(value))
-
-    def print_rendered(self, rendered_values, rstrip=True):
-        """ Format and print the pre-rendered data to the output device. """
-        for line_buf in self.format_rows(rendered_values):
-            line = ''.join(map(str, line_buf))
-            print(line.rstrip() if rstrip else line, file=self.file)
-
-    @functools.lru_cache()
-    def _get_blank_cell(self, index):
-        """ Return a formatted blank cell for a specific column index. """
-        return self.formatters[index](VTMLBuffer())[0]
-
-    def print(self, data):
-        if not self.headers_drawn:
-            if not self.hide_header:
-                if self.title:
-                    self.print_title(self.cell_format(self.title))
-                if any(self.headers):
-                    self.print_headers([self.cell_format(x or '')
-                                        for x in self.headers])
-            self.headers_drawn = True
-        self.print_rendered(self.render_data(data))
-
-    def print_linebreak(self):
-        print(self.linebreak * self.viewable_width, file=self.file)
 
     def make_formatter(self, width, padding, alignment, overflow=None):
         """ Create formatter function that factors the width and alignment
@@ -640,7 +597,7 @@ class TableRenderer(object):
         if overflow is None:
             overflow = self.overflow
         if overflow == 'clip':
-            overflower = lambda x: [x.clip(width, self.cliptext)]
+            overflower = lambda x: [x.clip(width, self.table.cliptext)]
         elif overflow == 'wrap':
             overflower = lambda x: x.wrap(width)
         elif overflow == 'preformatted':
@@ -673,17 +630,95 @@ class TableRenderer(object):
             dist.append(fixed_increment + withdrawl)
         return dist
 
-    @property
-    def usable_width(self):
-        """ The available combined character width when all padding is
-        removed. """
-        return self.width - sum(x['padding'] for x in self.colspec)
+    def get_filters(self):
+        """ Coroutine based filters for render pipeline. """
+        return [
+            self.compute_style_filter,
+            self.render_filter,
+            self.calc_widths_filter,
+            self.format_row_filter,
+            self.align_rows_filter,
+        ]
 
-    @property
-    def viewable_width(self):
-        """ The available combined character width when all padding is
-        removed. """
-        return sum(self.widths) + sum(x['padding'] for x in self.colspec)
+    def format_row_filter(self, next_filter):
+        """ Apply overflow, justification, padding and expansion to a row. """
+        next(next_filter)
+        while True:
+            items = (yield)
+            assert all(isinstance(x, VTMLBuffer) for x in items)
+            raw = (fn(x) for x, fn in zip(items, self.formatters))
+            for x in itertools.zip_longest(*raw):
+                next_filter.send(x)
+
+    def align_rows_filter(self, next_filter):
+        align_coro = self._column_pad_filter if self.table.align_rows else \
+            self._column_pack_filter
+        aligner = align_coro(next_filter)
+        next(aligner)
+        while True:
+            aligner.send((yield))
+
+    def _column_pack_filter(self, next_filter):
+        """ Top-align column data irrespective of original row alignment.  E.g.
+            INPUT: [
+                ["1a", "2a"],
+                [None, "2b"],
+                ["1b", "2c"],
+                [None, "2d"]
+            ]
+            OUTPUT: [
+                ["1a", "2a"],
+                ["1b", "2b"],
+                [<blank>, "2c"],
+                [<blank>, "2d"]
+            ]
+        """
+        next(next_filter)
+        col_count = len(self.widths)
+        queues = [collections.deque() for _ in range(col_count)]
+        while True:
+            try:
+                row = (yield)
+            except GeneratorExit:
+                break
+            for col, queue in zip(row, queues):
+                if col is not None:
+                    queue.append(col)
+            if all(queues):
+                next_filter.send([x.popleft() for x in queues])
+        blanks = list(map(self._get_blank_cell, range(col_count)))
+        while any(queues):
+            next_filter.send([q.popleft() if q else blank
+                              for q, blank in zip(queues, blanks)])
+
+    def _column_pad_filter(self, next_filter):
+        """ Expand blank lines caused from overflow of other columns to blank
+        whitespace.  E.g.
+            INPUT: [
+                ["1a", "2a"],
+                [None, "2b"],
+                ["1b", "2c"],
+                [None, "2d"]
+            ]
+            OUTPUT: [
+                ["1a", "2a"],
+                [<blank>, "2b"],
+                ["1b", "2c"],
+                [<blank>, "2d"]
+            ]
+        """
+        next(next_filter)
+        while True:
+            line = list((yield))
+            for i, col in enumerate(line):
+                if col is None:
+                    line[i] = self._get_blank_cell(i)
+            next_filter.send(line)
+
+    @functools.lru_cache()
+    def _get_blank_cell(self, index):
+        """ Return a formatted blank cell for a specific column index. """
+        return self.formatters[index](VTMLBuffer())[0]
 
     def width_normalize(self, width):
         """ Handle a width style, which can be a fractional number
@@ -695,31 +730,64 @@ class TableRenderer(object):
             else:
                 return int(width)
 
-    def calc_widths(self, sample_data):
-        """ Convert the colspec into absolute col widths. The sample data
-        should be already rendered if used in conjunction with a Table. """
-        remaining = self.usable_width
-        widths = [x['width'] for x in self.colspec]
-        preformatted = [i for i, x in enumerate(self.colspec)
-                        if x['overflow'] == 'preformatted']
-        unspec = []
-        for i, width in enumerate(widths):
-            fixed_width = self.width_normalize(width)
-            if fixed_width is None:
-                unspec.append(i)
-            else:
-                widths[i] = fixed_width  # Maybe adjust for fractional widths.
-                remaining -= fixed_width
-        if unspec:
-            if self.flex and sample_data:
-                for i, w in self.calc_flex(sample_data, remaining, unspec,
-                                           preformatted):
-                    widths[i] = w
-            else:
-                dist = self._uniform_dist(len(unspec), remaining)
-                for i, width in zip(unspec, dist):
-                    widths[i] = width
-        return widths
+    def calc_widths_filter(self, next_filter):
+        """ Coroutine to analyze the incoming data stream for creating optimal
+        column width choices.  This may buffer some of the incoming stream if
+        there isn't enough information to make good choices about column
+        widths.  Also it may resize widths if certain conditions are met such
+        as the terminal width resize event being detected. """
+        window_sent = not not self.data_window
+        next_primed = False
+        genexit = None
+        if not self.data_window:
+            start = time.monotonic()
+            while len(self.data_window) < self.min_render_prefill or \
+                  (len(self.data_window) < self.max_render_prefill and
+                   (time.monotonic() - start) < self.max_render_delay):
+                try:
+                    self.data_window.append((yield))
+                except GeneratorExit as e:
+                    genexit = e
+                    break
+        while True:
+            if self.width != self.desired_width:
+                self.headers_drawn = False
+                self.width = self.desired_width
+                remaining = self.usable_width
+                widths = [x['width'] for x in self.colspec]
+                preformatted = [i for i, x in enumerate(self.colspec)
+                                if x['overflow'] == 'preformatted']
+                unspec = []
+                for i, width in enumerate(widths):
+                    fixed_width = self.width_normalize(width)
+                    if fixed_width is None:
+                        unspec.append(i)
+                    else:
+                        widths[i] = fixed_width
+                        remaining -= fixed_width
+                if unspec:
+                    if self.table.flex and self.data_window:
+                        for i, w in self.calc_flex(self.data_window, remaining,
+                                                   unspec, preformatted):
+                            widths[i] = w
+                    else:
+                        dist = self._uniform_dist(len(unspec), remaining)
+                        for i, width in zip(unspec, dist):
+                            widths[i] = width
+                self.widths = widths
+                self.formatters = self.make_formatters()
+            if not next_primed:
+                next(next_filter)
+                next_primed = True
+            if not window_sent:
+                for x in self.data_window:
+                    next_filter.send(x)
+                window_sent = True
+            if genexit:
+                raise genexit
+            data = (yield)
+            self.data_window.append(data)
+            next_filter.send(data)
 
     def calc_flex(self, data, max_width, cols, preformatted=None):
         """ Scan data returning the best width for each column given the
@@ -746,7 +814,7 @@ class TableRenderer(object):
             })
         self.adjust_widths(max_width, colstats)
         required = sum(x['offt'] for x in colstats)
-        if required < max_width and self.justify:
+        if required < max_width and self.table.justify:
             # Fill remaining space proportionately.
             remaining = max_width
             for x in colstats:
@@ -788,7 +856,7 @@ class TableRenderer(object):
             chop['offt'] -= 1
 
 
-class PlainTableRenderer(TableRenderer):
+class PlainTableRenderer(VisualTableRenderer):
     """ Render output without any vt100 codes. """
 
     name = 'plain'
@@ -803,7 +871,7 @@ class PlainTableRenderer(TableRenderer):
 Table.register_renderer(PlainTableRenderer)
 
 
-class TerminalTableRenderer(TableRenderer):
+class TerminalTableRenderer(VisualTableRenderer):
     """ Render a table designed to fit/fill a terminal.  This renderer produces
     the most human friendly output when on a terminal device. """
 
@@ -813,7 +881,14 @@ class TerminalTableRenderer(TableRenderer):
 Table.register_renderer(TerminalTableRenderer)
 
 
-class JSONTableRenderer(PlainTableRenderer):
+class DataTableRenderer(TableRenderer):
+    """ ABC intended for data renderers. """
+
+    def cell_format(self, value):
+        return vtmlrender(value, plain=True)
+
+
+class JSONTableRenderer(DataTableRenderer):
     """ Generate JSON output of the table. """
 
     name = 'json'
@@ -855,26 +930,27 @@ class JSONTableRenderer(PlainTableRenderer):
     def print_footer(self, content):
         self.buf['footers'].append(self.cell_format(content).text())
 
-    def print_rendered(self, rendered_values):
-        self.buf['rows'].extend(dict(zip(self.keys, [x.text() for x in row]))
-                                for row in rendered_values)
+    def print_row(self, row):
+        row = [x.text() for x in row]
+        self.buf['rows'].append(dict(zip(self.keys, row)))
 
     def close(self, exception=None):
         if exception and any(exception):
             return
-        print(json.dumps(self.buf, indent=4, sort_keys=True), file=self.file)
+        print(json.dumps(self.buf, indent=4, sort_keys=True),
+              file=self.table.file)
 
 Table.register_renderer(JSONTableRenderer)
 
 
-class CSVTableRenderer(PlainTableRenderer):
+class CSVTableRenderer(DataTableRenderer):
     """ Generate CSV (comma delimited) output of the table. """
 
     name = 'csv'
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.writer = csv.writer(self.file)
+        self.writer = csv.writer(self.table.file)
 
     def print_title(self, title):
         """ CSV does not support a title. """
@@ -883,8 +959,8 @@ class CSVTableRenderer(PlainTableRenderer):
     def print_headers(self, headers):
         self.writer.writerow(headers)
 
-    def print_rendered(self, rendered_values):
-        self.writer.writerows(rendered_values)
+    def print_row(self, row):
+        self.writer.writerow(row)
 
     def print_footer(self, content):
         """ CSV does not support footers. """
@@ -898,32 +974,39 @@ class MarkdownTableRenderer(PlainTableRenderer):
 
     name = 'md'
 
-    def capture_table_state(self, table):
-        super().capture_table_state(table)
+    def get_filters(self):
+        filters = super().get_filters()
+        idx = filters.index(self.compute_style_filter)
+        filters.insert(idx + 1, self.adjust_width_filter)
+        return filters
+
+    def adjust_width_filter(self, next_filter):
         # Reserve initial space based on headers and min MD reqs.
         self.width = sum(max(len(h) + c['padding'], 3)
-                         for h, c in zip(self.headers, self.colspec))
+                         for h, c in zip(self.table.headers, self.colspec))
         self.width += 2  # borders
+        next(next_filter)
+        while True:
+            next_filter.send((yield))
 
     def mdprint(self, *columns):
-        print('|%s|' % '|'.join(map(str, columns)), file=self.file)
+        print('|%s|' % '|'.join(map(str, columns)), file=self.table.file)
 
     def print_title(self, title):
         print("\n**%s**\n" % self.format_fullwidth(title).text(),
-              file=self.file)
+              file=self.table.file)
 
     def print_headers(self, headers):
-        for line in self.format_rows([headers]):
+        for line in self.format_row(headers):
             self.mdprint(*map(str, line))
         self.mdprint(*("-" * (width + colspec['padding'])
                      for width, colspec in zip(self.widths, self.colspec)))
 
-    def print_rendered(self, rendered_values):
-        for line in self.format_rows(rendered_values):
-            self.mdprint(*line)
+    def print_row(self, row):
+        self.mdprint(*row)
 
     def print_footer(self, content):
-        print("\n_%s_" % content, file=self.file)
+        print("\n_%s_" % content, file=self.table.file)
 
 Table.register_renderer(MarkdownTableRenderer)
 
