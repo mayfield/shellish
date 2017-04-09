@@ -28,6 +28,9 @@
   split.
 - Added textwrap.wrap style text wrapper at `VTMLBuffer.wrap`.
 - Table `justify` option to turn off full width usage of screen.
+
+### Removed
+- Command alias support;  It never worked properly.
   
 
 ## [4.3] - 2017-02-25
