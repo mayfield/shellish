@@ -51,8 +51,8 @@ def beststr(*strings):
 #  * Hypens are kept on leftmost word.
 #  * Newlines are not grouped with other whitespace.
 #  * Other whitespace is grouped.
-_textwrap_word_break = re.compile('(\n|[ \t\f\v]+|[^\s]+?-+)')
-_whitespace = re.compile('[ \t\f\v]+')
+_textwrap_word_break = re.compile('(\n|[ \t\f\v\r]+|[^\s]+?-+)')
+_whitespace = re.compile('[ \t\f\v\r]+')
 
 
 def is_whitespace(value):

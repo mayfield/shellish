@@ -19,13 +19,13 @@ class CommandSanity(unittest.TestCase):
         class Foo(shellish.Command):
             pass
         f = Foo(name='foo')
-        self.assertEqual(f.title, None)
-        self.assertEqual(f.desc, None)
+        self.assertIsNone(f.title)
+        self.assertIsNone(f.desc)
 
     def test_no_title_desc_by_compose(self):
         f = shellish.Command(name='foo')
-        self.assertEqual(f.title, None)
-        self.assertEqual(f.desc, None)
+        self.assertIsNone(f.title)
+        self.assertIsNone(f.desc)
 
     def test_title_desc_by_subclass_attrs(self):
         class Foo(shellish.Command):

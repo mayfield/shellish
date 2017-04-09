@@ -20,13 +20,13 @@ def parse_docstring(entity):
     doc = inspect.getdoc(entity)
     if not doc:
         return None, None
-    doc = [x.strip() for x in doc.splitlines()]
-    if not doc[0]:
+    doc = doc.splitlines(keepends=True)
+    if not doc[0].strip():
         doc.pop(0)
-    title = (doc and doc.pop(0)) or None
-    if doc and not doc[0]:
+    title = (doc and doc.pop(0).strip()) or None
+    if doc and not doc[0].strip():
         doc.pop(0)
-    desc = '\n'.join(doc) or None
+    desc = ''.join(doc).rstrip() or None
     return title, desc
 
 
@@ -72,14 +72,13 @@ class Command(eventing.Eventer):
             self.name = name
         if self.name is None:
             raise RuntimeError("Command missing `name` attribute")
-        if type(self) is not Command:
-            alt_title, alt_desc = parse_docstring(self)
-        else:
-            alt_title, alt_desc = None, None
-        if not self.title or title:
-            self.title = title or alt_title
-        if not self.desc or desc:
-            self.desc = desc or alt_desc
+        if title is not None:
+            self.title = title
+        if desc is not None:
+            self.desc = desc
+        if self.title is None and self.desc is None and \
+           type(self) is not Command:
+            self.title, self.desc = parse_docstring(self)
         if run is not None:
             self.run = run
         if prerun is not None:

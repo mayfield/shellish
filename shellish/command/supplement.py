@@ -24,7 +24,8 @@ NBSP = ' '  # U+00A0
 
 class ShellishHelpFormatter(argparse.HelpFormatter):
 
-    hardline = re.compile('\n\s*\n+')
+    leadingws = re.compile('^\s+')
+    whitespace = re.compile('[ \n\t\v\f\r]+')
     max_width = 100
 
     class _Section(argparse.HelpFormatter._Section):
@@ -58,23 +59,44 @@ class ShellishHelpFormatter(argparse.HelpFormatter):
         return self._root_section.format_help()
 
     def _fill_text(self, text, width=None, indent=None):
-        r""" Reflow text but preserve hardlines (\n\n). """
+        """ Reflow text width while maintaining certain formatting
+        characteristics like double newlines and indented statements. """
         assert isinstance(text, str)
-        paragraphs = self.hardline.split(text)
         if indent is None:
             indent = NBSP * self._current_indent
         assert isinstance(indent, str)
+        paragraphs = []
+        line_buf = []
+        pre = ''
+        for fragment in text.splitlines():
+            pre_indent = self.leadingws.match(fragment)
+            if not fragment or pre_indent:
+                if line_buf:
+                    line = ' '.join(line_buf)
+                    paragraphs.append((pre, self.whitespace.sub(' ', line)))
+                if not fragment:
+                    paragraphs.append(('', ''))
+                else:
+                    pre = pre_indent.group()
+                    fragment = self.leadingws.sub('', fragment)
+                    paragraphs.append((pre, fragment))
+                line_buf = []
+                pre = ''
+            else:
+                line_buf.append(fragment)
+        if line_buf:
+            line = ' '.join(line_buf)
+            paragraphs.append((pre, self.whitespace.sub(' ', line)))
+        indent = VTMLBuffer(indent)
+        nl = VTMLBuffer('\n')
         if width is None:
             width = self._width - len(indent)
-        results = []
-        nl = VTMLBuffer('\n')
-        blankline = nl * 2
-        indent = VTMLBuffer(indent)
-        for x_text in paragraphs:
-            x_text = self._whitespace_matcher.sub(' ', x_text).strip()
-            results.append(nl.join((indent + x)
-                           for x in vtmlrender(x_text).wrap(width)))
-        return blankline.join(results)
+        lines = []
+        for pre, paragraph in paragraphs:
+            pwidth = width - len(pre)
+            lines.append(nl.join((indent + pre + x)
+                         for x in vtmlrender(paragraph).wrap(pwidth)))
+        return nl.join(lines)
 
     def _format_text(self, text):
         if '%(prog)' in text:
@@ -302,13 +324,15 @@ class ShellishParser(argparse.ArgumentParser):
             if len(desc) == 2 and '\n' not in desc[0]:
                 title, about = desc
             else:
-                title, about = None, desc
+                title, about = '', desc
         else:
-            title, about = self.description, None
+            title, about = self.description, ''
+        title = title.strip()
+        about = about.rstrip()
         if title:
-            formatter.add_text('<b><u>%s</u></b>\n' % title.strip())
+            formatter.add_text('<b><u>%s</u></b>\n' % title)
         if about:
-            formatter.add_text(about.strip())
+            formatter.add_text(about)
         for group in self._action_groups:
             formatter.start_section(group.title)
             formatter.add_text(group.description)
