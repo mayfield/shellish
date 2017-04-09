@@ -149,18 +149,13 @@ class Table(object):
         self.headers = tuple(headers or ())
         self.width = width
         self.flex = flex
-        self.file = file if file is not None else sys.stdout
+        self._file = file
         self.hide_header = hide_header
         self.hide_footer = hide_footer
         self.column_mask = column_mask
         self.align_rows = align_rows
         self.default_renderer = None
-        if not renderer:
-            if not self.file.isatty():
-                renderer = 'plain'
-            else:
-                renderer = 'terminal'
-        self.renderer_class = self.lookup_renderer(renderer)
+        self.renderer = renderer
         if cliptext is not None:
             self.cliptext = cliptext
         if column_padding is not None:
@@ -184,8 +179,23 @@ class Table(object):
         if self.default_renderer:
             self.default_renderer.close(exception=exception)
 
-    def lookup_renderer(self, name):
-        return self.renderer_types[name]
+    @property
+    def file(self):
+        if self._file is not None:
+            return self._file
+        else:
+            return sys.stdout
+
+    def make_renderer(self):
+        if not self.renderer:
+            if not self.file.isatty():
+                renderer = 'plain'
+            else:
+                renderer = 'terminal'
+        else:
+            renderer = self.renderer
+        Renderer = self.renderer_types[renderer]
+        return Renderer(self)
 
     @classmethod
     def register_renderer(cls, renderer):
@@ -317,6 +327,7 @@ class Table(object):
             }
         return ns2table
 
+
     def make_accessors(self, columns):
         """ Accessors can be numeric keys for sequence row data, string keys
         for mapping row data, or a callable function.  For numeric and string
@@ -370,7 +381,7 @@ class Table(object):
         rendered yet, we will make a renderer instance which will freeze
         state. """
         if not self.default_renderer:
-            self.default_renderer = self.renderer_class(self)
+            self.default_renderer = self.make_renderer()
         self.default_renderer.print(rows)
 
     def print_row(self, row):

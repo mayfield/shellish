@@ -11,7 +11,7 @@ from shellish import layout as L
 def calc_table(*columns, width=100, data=None, flex=False, **kwargs):
     t = L.Table(columns=columns, width=width, flex=flex, column_padding=0,
                 **kwargs)
-    renderer = t.renderer_class(t)
+    renderer = t.make_renderer()
     renderer.print(data or [])
     return renderer.widths
 
@@ -190,11 +190,11 @@ class TableDataSupport(unittest.TestCase):
 
     def test_columns_width_spec_only(self):
         output, t = self.table(columns=[None, None, None])
-        t.renderer_class(t)
+        t.make_renderer()
 
     def test_columns_empty_style_spec(self):
         output, t = self.table(columns=[{}, {}, {}])
-        t.renderer_class(t)
+        t.make_renderer()
 
     def test_empty_iter(self):
         output, t = self.table([None])
@@ -412,7 +412,7 @@ class JSONTableRenderer(unittest.TestCase):
 
     def setUp(self):
         t = L.Table([None], renderer='json')
-        self.r = t.renderer_class(t)
+        self.r = t.make_renderer()
 
     def test_make_key_snakecase(self):
         self.assertEqual(self.r.make_key('snake_case'), 'snakeCase')
