@@ -591,7 +591,7 @@ class VisualTableRenderer(TableRenderer):
             for i, col in enumerate(line):
                 if col is None:
                     line[i] = self._get_blank_cell(i)
-        yield line
+            yield line
 
     def format_fullwidth(self, value):
         """ Return a full width column. Note that the padding is inherited
