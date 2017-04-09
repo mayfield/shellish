@@ -47,10 +47,6 @@ class Session(eventing.Eventer):
         self.root_command = root_command
         self.name = name or root_command.name
         self.config = self.load_config()
-        if 'alias' in self.config:
-            self.aliases = self.config['alias']
-        else:
-            self.aliases = {}
         self.add_events(['precmd', 'postcmd'])
         raw_prompt = self.config['ui']['prompt_format']
         self.prompt_format = ast.literal_eval("'%s '" % raw_prompt)
@@ -220,7 +216,6 @@ class Session(eventing.Eventer):
 
     def complete_names(self, text, line, begin, end):
         choices = set(self.root_command.subcommands)
-        choices |= set(self.aliases)
         return [x for x in choices if x.startswith(line)]
 
     @contextlib.contextmanager

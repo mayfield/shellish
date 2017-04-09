@@ -106,19 +106,6 @@ class ShellishHelpFormatter(argparse.HelpFormatter):
     def _get_help_string(self, action):
         """ Adopted from ArgumentDefaultsHelpFormatter. """
         raise NotImplementedError('')
-        help = action.help
-        prefix = ''
-        if getattr(action, 'env', None):
-            prefix = '(<cyan>%s</cyan>) ' % action.env
-        if '%(default)' not in help and \
-           action.default not in (argparse.SUPPRESS, None):
-            if action.option_strings and action.nargs != 0:
-                if isinstance(action.default, io.IOBase):
-                    default = action.default.name
-                else:
-                    default = action.default
-                prefix = '[<b>%s</b>] %s ' % (default, prefix)
-        return prefix, help
 
     def _format_usage(self, *args, **kwargs):
         usage = super()._format_usage(*args, **kwargs)
