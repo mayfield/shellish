@@ -7,7 +7,7 @@
 ## [5] - 2017-04-10
 ### Fixed
 - Nested pager usage would cause various problems
-- `contrib.Help` now supports deep references to subcommands. Such as
+- `contrib.Help` now supports deep references to subcommands such as
   `help firstlevel secondlevel Nlevel`.
 
 ### Changed
