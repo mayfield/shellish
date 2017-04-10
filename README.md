@@ -46,13 +46,13 @@ python3.4 ./setup.py install
 *or*
 
 ```
-python3.4 ./setup.py develop
+python3 ./setup.py develop
 ```
 
 Compatibility
 --------
 
-* Python 3.4+
+* Python 3.5+
 
 
 Examples
