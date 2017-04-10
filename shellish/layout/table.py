@@ -42,7 +42,6 @@ class Table(object):
     column_minwidth = len(cliptext)
     renderer_types = {}
     overflow_modes = 'clip', 'wrap', 'preformatted'
-    justify = True
 
     def __init__(self, columns=None, headers=None, accessors=None, width=None,
                  clip=None, overflow=None, flex=True, file=None, cliptext=None,
@@ -156,6 +155,7 @@ class Table(object):
         self.align_rows = align_rows
         self.default_renderer = None
         self.renderer = renderer
+        self.justify = justify
         if cliptext is not None:
             self.cliptext = cliptext
         if column_padding is not None:
@@ -166,8 +166,6 @@ class Table(object):
             self.column_align = column_align
         if title_align is not None:
             self.title_align = title_align
-        if justify is not None:
-            self.justify = justify
 
     def __enter__(self):
         return self
@@ -350,7 +348,7 @@ class Table(object):
                 accessors[i] = acc
         return accessors
 
-    def create_colspec(self, columns):
+    def create_colspec(self, columns, overflow_default=None):
         """ Produce a full format columns spec dictionary.  The overrides spec
         can be a partial columns spec as described in the __init__ method's
         depiction of the .columns attribute. """
@@ -359,7 +357,7 @@ class Table(object):
             "minwidth": self.column_minwidth,
             "padding": self.column_padding,
             "align": self.column_align,
-            "overflow": self.overflow
+            "overflow": self.overflow or overflow_default
         } for x in range(columns)]
         if self.columns_def:
             for dst, src in zip(spec, self.columns_def):
@@ -399,6 +397,7 @@ class TableRenderer(object):
     exchange. """
 
     name = None
+    overflow_default = None
 
     def __init__(self, table):
         """ All calculated values required for rendering a table are kept
@@ -433,7 +432,8 @@ class TableRenderer(object):
             data = (yield)
             columns = len(data)
         self.accessors = t.column_mask_filter(t.make_accessors(columns))
-        self.colspec = t.column_mask_filter(t.create_colspec(columns))
+        self.colspec = t.column_mask_filter(t.create_colspec(columns,
+            overflow_default=self.overflow_default))
         self.headers = t.headers and t.column_mask_filter(t.headers[:])
         next(next_filter)
         if data is not None:
@@ -501,7 +501,9 @@ class TableRenderer(object):
         if not self.table.hide_header and self.table.title:
             self.print_title(self.cell_format(self.table.title))
         while True:
-            if not self.headers_drawn and any(self.headers):
+            if not self.table.hide_header and \
+               not self.headers_drawn and \
+               any(self.headers):
                 self.print_headers([self.cell_format(x or '')
                                     for x in self.headers])
                 self.headers_drawn = True
@@ -512,6 +514,7 @@ class VisualTableRenderer(TableRenderer):
     """ ABC used for renderers that draw visually. """
 
     overflow_default = 'preformatted'
+    justify_default = False
     linebreak = beststr('—', '-')
     title_tpl = '\n<b>{:vtml}</b>\n'
     header_tpl = '<reverse>{:vtml}</reverse>'
@@ -529,9 +532,6 @@ class VisualTableRenderer(TableRenderer):
         super().__init__(table)
         self.width = None
         self.data_window = collections.deque(maxlen=self.max_render_prefill)
-        self.overflow = self.table.overflow
-        if self.overflow is None:
-            self.overflow = self.overflow_default
 
     @property
     def usable_width(self):
@@ -605,7 +605,7 @@ class VisualTableRenderer(TableRenderer):
         """ Create formatter function that factors the width and alignment
         settings. """
         if overflow is None:
-            overflow = self.overflow
+            overflow = self.overflow_default
         if overflow == 'clip':
             overflower = lambda x: [x.clip(width, self.table.cliptext)]
         elif overflow == 'wrap':
@@ -613,7 +613,7 @@ class VisualTableRenderer(TableRenderer):
         elif overflow == 'preformatted':
             overflower = lambda x: x.split('\n')
         else:
-            raise RuntimeError("Unexpected overflow mode: %s" % (overflow,))
+            raise RuntimeError("Unexpected overflow mode: %r" % overflow)
         align = self.get_aligner(alignment, width)
         pad = self.get_aligner('center', width + padding)
         return lambda value: [pad(align(x)) for x in overflower(value)]
@@ -761,7 +761,7 @@ class VisualTableRenderer(TableRenderer):
                     break
         while True:
             if self.width != self.desired_width:
-                self.headers_drawn = False
+                self.headers_drawn = False  # TODO: make optional
                 self.width = self.desired_width
                 remaining = self.usable_width
                 widths = [x['width'] for x in self.colspec]
@@ -824,7 +824,9 @@ class VisualTableRenderer(TableRenderer):
             })
         self.adjust_widths(max_width, colstats)
         required = sum(x['offt'] for x in colstats)
-        if required < max_width and self.table.justify:
+        justify = self.table.justify if self.table.justify is not None else \
+            self.justify_default
+        if required < max_width and justify:
             # Fill remaining space proportionately.
             remaining = max_width
             for x in colstats:
@@ -887,6 +889,7 @@ class TerminalTableRenderer(VisualTableRenderer):
 
     name = 'terminal'
     overflow_default = 'clip'
+    justify_default = True
 
 Table.register_renderer(TerminalTableRenderer)
 
@@ -984,20 +987,11 @@ class MarkdownTableRenderer(PlainTableRenderer):
 
     name = 'md'
 
-    def get_filters(self):
-        filters = super().get_filters()
-        idx = filters.index(self.compute_style_filter)
-        filters.insert(idx + 1, self.adjust_width_filter)
-        return filters
-
-    def adjust_width_filter(self, next_filter):
-        # Reserve initial space based on headers and min MD reqs.
-        self.width = sum(max(len(h) + c['padding'], 3)
-                         for h, c in zip(self.table.headers, self.colspec))
-        self.width += 2  # borders
-        next(next_filter)
-        while True:
-            next_filter.send((yield))
+    @property
+    def usable_width(self):
+        """ Allocate space for markdown borders. """
+        border_width = len(self.colspec) + 1
+        return super().usable_width - border_width
 
     def mdprint(self, *columns):
         print('|%s|' % '|'.join(map(str, columns)), file=self.table.file)
