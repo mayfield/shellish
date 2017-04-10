@@ -2,6 +2,9 @@
 
 
 ## [Unreleased] - unreleased
+
+
+## [5] - 2017-04-10
 ### Fixed
 - Nested pager usage would cause various problems
 
@@ -279,7 +282,8 @@
 - First stable release
 
 
-[unreleased]: https://github.com/mayfield/shellish/compare/v4.3...HEAD
+[unreleased]: https://github.com/mayfield/shellish/compare/v5...HEAD
+[5]: https://github.com/mayfield/shellish/compare/v4.3...v5
 [4.3]: https://github.com/mayfield/shellish/compare/v4.2...v4.3
 [4.2]: https://github.com/mayfield/shellish/compare/v4.1...v4.2
 [4.1]: https://github.com/mayfield/shellish/compare/v4...v4.1
