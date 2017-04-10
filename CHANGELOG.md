@@ -7,9 +7,11 @@
 ## [5] - 2017-04-10
 ### Fixed
 - Nested pager usage would cause various problems
+- `contrib.Help` now supports deep references to subcommands. Such as
+  `help firstlevel secondlevel Nlevel`.
 
 ### Changed
-- `Table(clip=True` is now controlled by the **overflow** option, a la.
+- `Table(clip=True)` is now controlled by the **overflow** option, a la.
   `Table(overflow='clip')`.
 - Refactored VTML -> VTMLBuffer.  Bigger API, more features (See Added).
 - Changes to arguments produced by `Command.add_table_arguments`:
@@ -27,10 +29,10 @@
   in-place add (foo += bar) would produce a new object;  Now it extends
   the left-operand.  The right-hand add adds support for adding VTMLBuffer
   to a `str` object, eg. `a = 'foo' + VTMLBuffer('bar')`
-- Added str-like methods to `VTMLBuffer`: startswith, endswith, __contains__,
-  split.
+- Added str-like methods to `VTMLBuffer`: `startswith`, `endswith`,
+  `__contains__` and `split`.
 - Added textwrap.wrap style text wrapper at `VTMLBuffer.wrap`.
-- Table `justify` option to turn off full width usage of screen.
+- Table `justify` option to turn off full-width usage of screen.
 
 ### Removed
 - Command alias support;  It never worked properly.
