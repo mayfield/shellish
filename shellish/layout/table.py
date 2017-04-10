@@ -432,8 +432,8 @@ class TableRenderer(object):
             data = (yield)
             columns = len(data)
         self.accessors = t.column_mask_filter(t.make_accessors(columns))
-        self.colspec = t.column_mask_filter(t.create_colspec(columns,
-            overflow_default=self.overflow_default))
+        self.colspec = t.column_mask_filter(
+            t.create_colspec(columns, overflow_default=self.overflow_default))
         self.headers = t.headers and t.column_mask_filter(t.headers[:])
         next(next_filter)
         if data is not None:
