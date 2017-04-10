@@ -442,7 +442,8 @@ class VTMLBufferTests(unittest.TestCase):
         self.assertListEqual(vs.split('bcd'), ref.split('bcd'))
 
     def test_split_multichar(self):
-        for ref in ('abcGAPABC', 'abcGAP', 'GAPabc', 'abGAPABGAP', 'aGAPbGAPc'):
+        for ref in ('abcGAPABC', 'abcGAP', 'GAPabc', 'abGAPABGAP',
+                    'aGAPbGAPc'):
             vs = R.vtmlrender(ref)
             self.assertListEqual(vs.split('GAP'), ref.split('GAP'))
 

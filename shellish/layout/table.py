@@ -327,7 +327,6 @@ class Table(object):
             }
         return ns2table
 
-
     def make_accessors(self, columns):
         """ Accessors can be numeric keys for sequence row data, string keys
         for mapping row data, or a callable function.  For numeric and string
@@ -753,8 +752,8 @@ class VisualTableRenderer(TableRenderer):
         if not self.data_window:
             start = time.monotonic()
             while len(self.data_window) < self.min_render_prefill or \
-                  (len(self.data_window) < self.max_render_prefill and
-                   (time.monotonic() - start) < self.max_render_delay):
+                (len(self.data_window) < self.max_render_prefill and
+                 (time.monotonic() - start) < self.max_render_delay):
                 try:
                     self.data_window.append((yield))
                 except GeneratorExit as e:
