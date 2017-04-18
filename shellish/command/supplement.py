@@ -362,6 +362,10 @@ class ShellishParser(argparse.ArgumentParser):
             prog = f.format_help().strip()
         return super().add_subparsers(prog=prog, **kwargs)
 
+    def _get_positional_kwargs(self, dest, **kwargs):
+        dest = dest.replace('-', '_')
+        return super()._get_positional_kwargs(dest, **kwargs)
+
 
 class SafeFileContext(object):
     """ Used by SafeFileType to provide a file-like context manager. """

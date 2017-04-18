@@ -153,3 +153,20 @@ class CommandFileArguments(unittest.TestCase):
         cmd = shellish.Command(name='test', run=run)
         cmd.add_file_argument('--foo', mode='w')
         cmd(argv='--foo makethis')
+
+
+class ArgumentDestSafety(unittest.TestCase):
+
+    def test_dash_positional(self):
+        c = shellish.Command(name='test_dash')
+        c.add_argument('foo-bar')
+        args = c.argparser.parse_known_args(['value'])[0]
+        self.assertIn('foo_bar', args)
+        self.assertEqual(args.foo_bar, 'value')
+
+    def test_dash_opt(self):
+        c = shellish.Command(name='test_dash')
+        c.add_argument('--foo-bar')
+        args = c.argparser.parse_known_args(['--foo-bar', 'value'])[0]
+        self.assertIn('foo_bar', args)
+        self.assertEqual(args.foo_bar, 'value')

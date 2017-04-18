@@ -2,6 +2,9 @@
 
 
 ## [Unreleased] - unreleased
+### Fixed
+- Fix for support of positionals with dashes in them.  They are converted
+  to underscores just like they are for optionals.
 
 
 ## [5] - 2017-04-10
