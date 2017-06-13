@@ -314,12 +314,10 @@ class ShellishParser(argparse.ArgumentParser):
                 title, about = '', desc
         else:
             title, about = self.description, ''
-        title = title.strip()
-        about = about.rstrip()
         if title:
-            formatter.add_text('<b><u>%s</u></b>\n' % title)
+            formatter.add_text('<b><u>%s</u></b>\n' % title.strip())
         if about:
-            formatter.add_text(about)
+            formatter.add_text(about.rstrip())
         for group in self._action_groups:
             formatter.start_section(group.title)
             formatter.add_text(group.description)
