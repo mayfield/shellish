@@ -112,7 +112,7 @@ class Session(eventing.Eventer):
                 result = command.run_wrap(args)
             except BaseException as e:
                 self.fire_event('postcmd', command, args, exc=e)
-                raise e
+                raise
             else:
                 self.fire_event('postcmd', command, args, result=result)
                 return result

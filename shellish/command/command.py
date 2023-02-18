@@ -165,7 +165,7 @@ class Command(eventing.Eventer):
         except (SystemExit, Exception) as e:
             self.postrun(args, exc=e)
             self.fire_event('postrun', args, exc=e)
-            raise e
+            raise
         else:
             self.postrun(args, result=result)
             self.fire_event('postrun', args, result=result)
