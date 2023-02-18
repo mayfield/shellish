@@ -1,18 +1,11 @@
 #!/usr/bin/env python
-
 from setuptools import setup, find_packages
-
-README = 'README.md'
 
 
 def long_desc():
-    try:
-        import pypandoc
-    except ImportError:
-        with open(README) as f:
-            return f.read()
-    else:
-        return pypandoc.convert(README, 'rst')
+    with open('README.md') as f:
+        return f.read()
+
 
 setup(
     name='shellish',
@@ -23,6 +16,7 @@ setup(
     url='https://github.com/mayfield/shellish/',
     license='MIT',
     long_description=long_desc(),
+    long_description_content_type='text/markdown',
     packages=find_packages(),
     install_requires=['markdown2'],
     test_suite='test',
