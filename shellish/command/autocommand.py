@@ -4,6 +4,8 @@ A command class that is built from a normal function.
 
 import argparse
 import inspect
+import os.path
+import sys
 from . import command
 
 
@@ -110,7 +112,10 @@ def autocommand(func):
     """ A simplified decorator for making a single function a Command
     instance.  In the future this will leverage PEP0484 to do really smart
     function parsing and conversion to argparse actions. """
-    name = func.__name__
+    if func.__module__ == '__main__':
+        name = os.path.basename(sys.argv[0])
+    else:
+        name = func.__name__
     title, desc = command.parse_docstring(func)
     if not title:
         title = 'Auto command for: %s' % name
