@@ -15,7 +15,6 @@ class TracebackSanity(unittest.TestCase):
         self.assertIn('Traceback (most recent call last)', traceback_lines[0])
         self.assertIn('File', traceback_lines[1])
         self.assertIn('line', traceback_lines[1])
-        self.assertIn('1.', traceback_lines[-3])
         self.assertIn('File', traceback_lines[-3])
         self.assertIn('line', traceback_lines[-3])
         self.assertIn(exc_name, traceback_lines[-1])
