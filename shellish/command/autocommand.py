@@ -67,7 +67,7 @@ class AutoCommand(command.Command):
                               param.KEYWORD_ONLY):
                 if param.kind == param.KEYWORD_ONLY or \
                    param.default is not sig.empty:
-                    name = '--%s' % name
+                    name = '--%s' % name.replace('_', '-')
                     label = 'keyword'
                     got_keywords = True
                 else:
@@ -86,7 +86,7 @@ class AutoCommand(command.Command):
                 label = 'varargs'
             elif param.kind == param.VAR_KEYWORD:
                 options['nargs'] = argparse.REMAINDER
-                name = '--%s' % name
+                name = '--%s' % name.replace('_', '-')
                 label = 'varkwargs'
                 help = 'variable key/value args [[--key value] || ' \
                        '[key=value] ...]'
@@ -102,12 +102,7 @@ class AutoCommand(command.Command):
                         del options['type']
                     else:
                         options['type'] = lambda x: x.lower() not in self.falsy
-                else:
-                    try:
-                        options['metavar'] = options['type'].__name__.upper()
-                    except:
-                        pass
-            action = parser.add_argument(name.replace('_', '-'), **options)
+            action = parser.add_argument(name, **options)
             action.label = label
 
 

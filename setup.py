@@ -16,7 +16,7 @@ def long_desc():
 
 setup(
     name='shellish',
-    version='5',
+    version='5.1',
     description='A framework for CLI/shell programs.',
     author='Justin Mayfield',
     author_email='tooker@gmail.com',
@@ -33,15 +33,14 @@ setup(
         ]
     },
     classifiers=[
-        'Development Status :: 4 - Beta',
-        # 'Development Status :: 5 - Production/Stable',
-        # 'Development Status :: 6 - Mature',
+        'Development Status :: 6 - Mature',
         'Intended Audience :: Developers',
         'License :: OSI Approved :: MIT License',
         'Operating System :: OS Independent',
         'Programming Language :: Python',
         'Programming Language :: Python :: 3.5',
         'Programming Language :: Python :: 3.6',
+        'Programming Language :: Python :: 3.11',
         'Topic :: Software Development :: Libraries',
         'Topic :: System :: Shells',
     ]
