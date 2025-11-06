@@ -19,7 +19,6 @@ setup(
     long_description_content_type='text/markdown',
     packages=find_packages(),
     install_requires=['markdown2'],
-    test_suite='test',
     entry_points={
         'console_scripts': [
             'csvpretty=shellish.tools.csvpretty:csvpretty',
@@ -29,7 +28,6 @@ setup(
     classifiers=[
         'Development Status :: 6 - Mature',
         'Intended Audience :: Developers',
-        'License :: OSI Approved :: MIT License',
         'Operating System :: OS Independent',
         'Programming Language :: Python',
         'Programming Language :: Python :: 3.5',
