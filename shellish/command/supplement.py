@@ -105,7 +105,7 @@ class ShellishHelpFormatter(argparse.HelpFormatter):
 
     def _get_help_string(self, action):
         """ Adopted from ArgumentDefaultsHelpFormatter. """
-        raise NotImplementedError('')
+        return action.help
 
     def _format_usage(self, *args, **kwargs):
         usage = super()._format_usage(*args, **kwargs)
